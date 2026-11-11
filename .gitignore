@@ -1,0 +1,9 @@
+node_modules/
+lib/
+*.tsbuildinfo
+applications/browser/src-gen/
+applications/browser/gen-webpack*.js
+applications/browser/webpack.config.js
+plugins/
+.DS_Store
+*.log

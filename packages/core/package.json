@@ -1,0 +1,30 @@
+{
+  "name": "@cicerone/core",
+  "version": "0.1.0",
+  "description": "Cicerone — the agent, its lean tool set, and the tour and activity views that show its work",
+  "type": "module",
+  "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
+  "files": ["lib", "src"],
+  "dependencies": {
+    "@theia/ai-chat": "1.77.0",
+    "@theia/ai-core": "1.77.0",
+    "@theia/core": "1.77.0",
+    "@theia/editor": "1.77.0",
+    "@theia/filesystem": "1.77.0",
+    "@theia/monaco": "1.77.0",
+    "@theia/monaco-editor-core": "*",
+    "@theia/workspace": "1.77.0",
+    "@vscode/ripgrep": "^1.18.0",
+    "tslib": "^2.8.1"
+  },
+  "theiaExtensions": [
+    { "frontend": "lib/browser/core-frontend-module", "backend": "lib/node/core-backend-module" }
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./lib/common": "./lib/common/index.js",
+    "./lib/browser": "./lib/browser/index.js",
+    "./lib/*.js": "./lib/*.js",
+    "./lib/*": "./lib/*.js"
+  }
+}

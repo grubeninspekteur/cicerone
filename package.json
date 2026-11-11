@@ -1,0 +1,29 @@
+{
+  "private": true,
+  "name": "cicerone",
+  "version": "0.1.0",
+  "description": "Cicerone — an agentic workbench where the agent shows its work",
+  "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*",
+    "applications/*"
+  ],
+  "scripts": {
+    "build:packages": "tsc -b packages/litellm packages/core packages/shape",
+    "build:app": "npm run -w applications/browser build",
+    "build": "npm run build:packages && npm run build:app",
+    "watch:packages": "tsc -b -w packages/litellm packages/core packages/shape",
+    "start": "npm run -w applications/browser start --",
+    "download:plugins": "npm run -w applications/browser download:plugins",
+    "mock-gateway": "node tools/mock-gateway/server.mjs"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "rimraf": "^6.0.0",
+    "typescript": "~5.9.0"
+  }
+}

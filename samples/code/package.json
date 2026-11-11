@@ -1,0 +1,8 @@
+{
+  "name": "postcard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sample project for Cicerone: a tiny library with one failing test.",
+  "scripts": { "test": "node --test" }
+}

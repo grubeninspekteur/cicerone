@@ -1,0 +1,185 @@
+/*
+ * Cicerone uses one accent, a brass amber, and it always means the same thing:
+ * this is waiting for you. Everything else takes its colours from the active theme.
+ */
+:root {
+    --cicerone-accent: #c8872a;
+    --cicerone-accent-soft: color-mix(in srgb, var(--cicerone-accent) 16%, transparent);
+    --cicerone-ok: var(--theia-charts-green, #3fa66b);
+    --cicerone-bad: var(--theia-charts-red, #d0564c);
+    --cicerone-line: var(--theia-editorWidget-border, var(--theia-panel-border, rgba(128, 128, 128, 0.3)));
+    --cicerone-dim: var(--theia-descriptionForeground);
+}
+
+.cicerone-dim { color: var(--cicerone-dim); }
+
+/* ---------------------------------------------------------------- editor */
+
+.monaco-editor .cicerone-spotlight { background: var(--cicerone-accent-soft); }
+.monaco-editor .cicerone-reading { background: color-mix(in srgb, var(--cicerone-accent) 9%, transparent); transition: background 0.6s; }
+.monaco-editor .cicerone-spotlight-gutter { border-left: 3px solid var(--cicerone-accent); margin-left: 4px; }
+
+/* ------------------------------------------------------------------ tour */
+
+.cicerone-tour { display: flex; flex-direction: column; height: 100%; outline: none; font-size: var(--theia-ui-font-size1); }
+.cicerone-tour-body { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+
+.cicerone-empty { padding: 28px 20px; max-width: 34em; line-height: 1.5; }
+.cicerone-empty-icon { font-size: 28px !important; color: var(--cicerone-accent); }
+.cicerone-empty h3 { margin: 12px 0 6px; font-size: 1.15em; font-weight: 600; }
+.cicerone-empty p { margin: 0 0 10px; }
+
+.cicerone-tour-header { padding: 12px 14px 10px; border-bottom: 1px solid var(--cicerone-line); }
+.cicerone-tour-select { width: 100%; margin-bottom: 8px; }
+.cicerone-tour-title {
+    margin: 0 0 6px; font-size: 1.15em; font-weight: 600; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cicerone-tour-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 0.92em; }
+.cicerone-spacer { flex: 1 1 auto; }
+
+.cicerone-chip {
+    display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 10px;
+    border: 1px solid var(--cicerone-line); white-space: nowrap;
+}
+.cicerone-chip .codicon { font-size: 12px; }
+.cicerone-chip.pending, .cicerone-chip.working { border-color: var(--cicerone-accent); color: var(--cicerone-accent); }
+.cicerone-chip.done { color: var(--cicerone-ok); border-color: color-mix(in srgb, var(--cicerone-ok) 50%, transparent); }
+
+/* The track: one segment per stop. The whole tour and where you are in it, at a glance. */
+.cicerone-track { display: flex; gap: 3px; margin-top: 10px; }
+.cicerone-track-seg {
+    flex: 1 1 0; min-width: 6px; max-width: 48px; height: 6px; padding: 0; border: none; border-radius: 3px; cursor: pointer;
+    background: color-mix(in srgb, var(--theia-foreground) 22%, transparent);
+}
+.cicerone-track-seg.change.pending { background: var(--cicerone-accent); }
+.cicerone-track-seg.change.accepted { background: var(--cicerone-ok); }
+.cicerone-track-seg.change.rejected { background: color-mix(in srgb, var(--theia-foreground) 22%, transparent); opacity: 0.5; }
+.cicerone-track-seg.change.stale { background: var(--cicerone-bad); }
+.cicerone-track-seg.current { height: 10px; margin-top: -2px; outline: 1px solid var(--theia-foreground); outline-offset: 1px; }
+.cicerone-track-seg:focus-visible { outline: 2px solid var(--theia-focusBorder); outline-offset: 1px; }
+
+.cicerone-summary { padding: 10px 14px; border-bottom: 1px solid var(--cicerone-line); line-height: 1.5; }
+.cicerone-summary p { margin: 0 0 6px; }
+.cicerone-summary p:last-child { margin-bottom: 0; }
+
+.cicerone-stops { list-style: none; margin: 0; padding: 4px 0; flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+.cicerone-waiting { padding: 14px; }
+
+.cicerone-stop {
+    display: flex; gap: 10px; padding: 8px 14px 8px 11px; cursor: pointer; border-left: 3px solid transparent;
+}
+.cicerone-stop:hover { background: var(--theia-list-hoverBackground); }
+.cicerone-stop.current { background: var(--theia-list-inactiveSelectionBackground, var(--theia-list-hoverBackground)); border-left-color: var(--cicerone-accent); cursor: default; }
+.cicerone-stop.rejected:not(.current) { opacity: 0.55; }
+
+.cicerone-stop-n {
+    flex: 0 0 20px; height: 20px; border-radius: 50%; text-align: center; line-height: 20px; font-size: 0.85em; font-variant-numeric: tabular-nums;
+    border: 1px solid var(--cicerone-line); color: var(--cicerone-dim);
+}
+.cicerone-stop.change.pending .cicerone-stop-n { border-color: var(--cicerone-accent); color: var(--cicerone-accent); }
+.cicerone-stop.change.accepted .cicerone-stop-n { border-color: var(--cicerone-ok); color: var(--cicerone-ok); }
+.cicerone-stops .cicerone-stop.current .cicerone-stop-n { background: var(--cicerone-accent); border-color: var(--cicerone-accent); color: #fff; }
+
+.cicerone-stop-main { flex: 1 1 auto; min-width: 0; }
+.cicerone-stop-head { display: flex; align-items: center; gap: 6px; min-height: 20px; }
+.cicerone-stop-icon { flex: 0 0 auto; font-size: 14px !important; color: var(--cicerone-dim); }
+.cicerone-stop-target { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.cicerone-stop-target .cicerone-dim { font-weight: 400; }
+.cicerone-stop-target code { font-family: var(--theia-code-font-family); font-size: 0.95em; font-weight: 400; }
+.cicerone-stop.rejected .cicerone-stop-target { text-decoration: line-through; }
+
+.cicerone-state { flex: 0 0 auto; font-size: 0.85em; color: var(--cicerone-dim); }
+.cicerone-state.pending { color: var(--cicerone-accent); }
+.cicerone-state.accepted { color: var(--cicerone-ok); }
+.cicerone-state.stale { color: var(--cicerone-bad); }
+
+.cicerone-stop-why { display: block; margin-top: 2px; line-height: 1.45; overflow-wrap: anywhere; }
+.cicerone-stop-why.clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--cicerone-dim); }
+.cicerone-stop-why code, .cicerone-summary code {
+    font-family: var(--theia-code-font-family); font-size: 0.92em; padding: 0 3px; border-radius: 3px;
+    background: color-mix(in srgb, var(--theia-foreground) 10%, transparent);
+}
+
+.cicerone-stale-reason { margin-top: 6px; color: var(--cicerone-bad); display: flex; gap: 6px; align-items: baseline; }
+
+.cicerone-preview {
+    margin-top: 8px; border: 1px solid var(--cicerone-line); border-radius: 4px; overflow: hidden;
+    font-family: var(--theia-code-font-family); font-size: 0.92em; line-height: 1.45;
+}
+.cicerone-preview-side { display: flex; gap: 6px; padding: 4px 8px; max-height: 9.5em; overflow: hidden; }
+.cicerone-preview-side.removed { background: var(--theia-diffEditor-removedLineBackground, color-mix(in srgb, var(--cicerone-bad) 12%, transparent)); }
+.cicerone-preview-side.added { background: var(--theia-diffEditor-insertedLineBackground, color-mix(in srgb, var(--cicerone-ok) 12%, transparent)); }
+.cicerone-preview-sign { flex: 0 0 auto; color: var(--cicerone-dim); user-select: none; }
+.cicerone-preview-text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.cicerone-preview-text mark { color: inherit; border-radius: 2px; }
+.cicerone-preview-side.removed mark { background: var(--theia-diffEditor-removedTextBackground, color-mix(in srgb, var(--cicerone-bad) 35%, transparent)); }
+.cicerone-preview-side.added mark { background: var(--theia-diffEditor-insertedTextBackground, color-mix(in srgb, var(--cicerone-ok) 35%, transparent)); }
+
+.cicerone-output {
+    margin: 8px 0 0; padding: 6px 8px; border: 1px solid var(--cicerone-line); border-radius: 4px; max-height: 11em; overflow: auto;
+    font-family: var(--theia-code-font-family); font-size: 0.9em; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+.cicerone-stop-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.cicerone-stop-actions .theia-button, .cicerone-tour-footer .theia-button, .cicerone-bulk .theia-button {
+    margin: 0; display: inline-flex; align-items: center; gap: 5px; min-width: 0; min-height: 26px; padding: 2px 12px; line-height: 1.2;
+}
+.cicerone-stop-actions .codicon, .cicerone-tour-footer .codicon { font-size: 14px; }
+
+.cicerone-tour-footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px;
+    border-top: 1px solid var(--cicerone-line); font-variant-numeric: tabular-nums;
+}
+.cicerone-bulk { display: flex; gap: 6px; padding: 0 14px 10px; }
+.cicerone-bulk .theia-button { flex: 1 1 0; justify-content: center; }
+
+/* -------------------------------------------------------------- activity */
+
+.cicerone-activity { height: 100%; outline: none; font-size: var(--theia-ui-font-size1); }
+.cicerone-activity-body { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.cicerone-activity-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 12px;
+    border-bottom: 1px solid var(--cicerone-line); flex: 0 0 auto;
+}
+.cicerone-activity-header b { color: var(--theia-foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cicerone-activity-tools { display: flex; gap: 4px; flex: 0 0 auto; }
+.cicerone-toggle {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 4px; cursor: pointer;
+    background: none; border: 1px solid transparent; color: var(--cicerone-dim); font: inherit;
+}
+.cicerone-toggle:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); color: var(--theia-foreground); }
+.cicerone-toggle.on { color: var(--cicerone-accent); border-color: color-mix(in srgb, var(--cicerone-accent) 45%, transparent); }
+.cicerone-toggle:focus-visible { outline: 1px solid var(--theia-focusBorder); }
+
+.cicerone-turns { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+.cicerone-turn { border-bottom: 1px solid var(--cicerone-line); }
+.cicerone-turn-header { display: flex; align-items: center; gap: 6px; padding: 5px 12px 5px 8px; cursor: pointer; }
+.cicerone-turn-header:hover { background: var(--theia-list-hoverBackground); }
+.cicerone-turn-prompt { flex: 1 1 auto; min-width: 8em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cicerone-turn-facts {
+    flex: 0 1 auto; display: flex; gap: 14px; color: var(--cicerone-dim); white-space: nowrap; overflow: hidden;
+    font-variant-numeric: tabular-nums; font-size: 0.92em;
+}
+.cicerone-turn-status { min-width: 4.5em; text-align: right; }
+.cicerone-turn-status.running, .cicerone-turn-status.waiting { color: var(--cicerone-accent); }
+.cicerone-turn-status.error { color: var(--cicerone-bad); }
+.cicerone-turn-status .codicon { font-size: 12px; }
+
+.cicerone-entries { padding: 0 0 6px; }
+.cicerone-entry {
+    display: grid; grid-template-columns: 18px 4.2em minmax(8em, 2fr) minmax(6em, 1.2fr) 4em; gap: 8px; align-items: center;
+    padding: 2px 12px 2px 30px; line-height: 1.5;
+}
+.cicerone-entry.clickable { cursor: pointer; }
+.cicerone-entry.clickable:hover { background: var(--theia-list-hoverBackground); }
+.cicerone-entry-status { font-size: 13px !important; color: var(--cicerone-dim); }
+.cicerone-entry.done .cicerone-entry-status { color: var(--cicerone-ok); }
+.cicerone-entry.failed .cicerone-entry-status { color: var(--cicerone-bad); }
+.cicerone-entry.awaiting-approval .cicerone-entry-status, .cicerone-entry.running .cicerone-entry-status { color: var(--cicerone-accent); }
+.cicerone-entry-tool { font-family: var(--theia-code-font-family); font-size: 0.92em; color: var(--cicerone-dim); }
+.cicerone-entry-target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--theia-code-font-family); font-size: 0.92em; }
+.cicerone-entry-outcome { color: var(--cicerone-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cicerone-entry.awaiting-approval .cicerone-entry-outcome { color: var(--cicerone-accent); }
+.cicerone-entry.failed .cicerone-entry-outcome { color: var(--cicerone-bad); }
+.cicerone-entry-time { text-align: right; color: var(--cicerone-dim); font-variant-numeric: tabular-nums; font-size: 0.92em; }

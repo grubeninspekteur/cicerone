@@ -1,0 +1,22 @@
+{
+  "name": "@cicerone/litellm",
+  "version": "0.1.0",
+  "description": "Cicerone — LiteLLM gateway provider for Theia AI",
+  "type": "module",
+  "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
+  "files": ["lib", "src"],
+  "dependencies": {
+    "@theia/ai-core": "1.77.0",
+    "@theia/ai-openai": "1.77.0",
+    "@theia/core": "1.77.0",
+    "tslib": "^2.8.1"
+  },
+  "theiaExtensions": [
+    { "frontend": "lib/browser/litellm-frontend-module", "backend": "lib/node/litellm-backend-module" }
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./lib/*.js": "./lib/*.js",
+    "./lib/*": "./lib/*.js"
+  }
+}

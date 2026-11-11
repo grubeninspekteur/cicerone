@@ -1,0 +1,12 @@
+export * from './activity-service.js';
+export * from './builtin-skills.js';
+export * from './cicerone-agent.js';
+export * from './stop-presenter.js';
+export * from './tour-service.js';
+export * from './tools.js';
+export * from './workspace-documents.js';
+export { TOUR_WIDGET_ID } from './tour-widget.js';
+export { ACTIVITY_WIDGET_ID } from './activity-widget.js';
+export { CHAT_VIEW_ID } from './core-contribution.js';
+export * from './edit-validator.js';
+export * from './markdown.js';
