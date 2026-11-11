@@ -1,0 +1,58 @@
+/* Views described by the workbench file. They borrow the list look of the host so they feel native. */
+
+.cicerone-view { height: 100%; outline: none; font-size: var(--theia-ui-font-size1); }
+.cicerone-view-body { height: 100%; overflow-y: auto; }
+.cicerone-view-message { padding: 14px; color: var(--cicerone-dim); line-height: 1.5; }
+.cicerone-view-message code { font-family: var(--theia-code-font-family); }
+.cicerone-view-bar { padding: 8px 12px 0; }
+.cicerone-view-bar .theia-button { margin: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 2px 12px; }
+
+.cicerone-view-group header { display: flex; align-items: center; gap: 4px; padding: 3px 12px 3px 8px; cursor: pointer; font-weight: 600; }
+.cicerone-view-group header:hover, .cicerone-view-group li:hover, .cicerone-view-cards li:hover, .cicerone-view-counts tr:hover { background: var(--theia-list-hoverBackground); }
+.cicerone-view-group-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cicerone-view-group-count {
+    flex: 0 0 auto; min-width: 18px; padding: 0 5px; border-radius: 9px; text-align: center; font-size: 0.85em; font-weight: 400;
+    background: var(--theia-badge-background); color: var(--theia-badge-foreground);
+}
+.cicerone-view-group ul { list-style: none; margin: 0; padding: 0; }
+.cicerone-view-group li { display: flex; gap: 8px; align-items: baseline; padding: 2px 12px 2px 26px; cursor: pointer; line-height: 1.5; }
+.cicerone-view-group.flat li { padding-left: 12px !important; }
+.cicerone-view-item-label { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cicerone-view-item-detail { flex: 1 1 0; min-width: 3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cicerone-dim); font-size: 0.92em; }
+
+.cicerone-view-cards { list-style: none; margin: 0; padding: 6px 0; }
+.cicerone-view-cards li { padding: 7px 14px; cursor: pointer; border-bottom: 1px solid var(--cicerone-line); }
+.cicerone-view-card-title { font-weight: 600; }
+.cicerone-view-cards dl { display: grid; grid-template-columns: max-content 1fr; gap: 1px 10px; margin: 3px 0 0; line-height: 1.45; }
+.cicerone-view-cards dt { color: var(--cicerone-dim); }
+.cicerone-view-cards dd { margin: 0; overflow-wrap: anywhere; }
+
+.cicerone-view-counts { padding: 12px 0; }
+.cicerone-view-total { padding: 0 14px 8px; }
+.cicerone-view-total-number { font-size: 1.7em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cicerone-view-progress { height: 4px; margin: 0 14px 12px; border-radius: 2px; background: color-mix(in srgb, var(--theia-foreground) 15%, transparent); }
+.cicerone-view-progress div { height: 100%; border-radius: 2px; background: var(--cicerone-accent); }
+.cicerone-view-counts table { width: 100%; border-collapse: collapse; }
+.cicerone-view-counts tr { cursor: pointer; }
+.cicerone-view-counts td { padding: 3px 0; }
+.cicerone-view-count-label { padding-left: 14px !important; max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cicerone-view-count-bar { width: 35%; padding: 3px 10px !important; }
+.cicerone-view-count-bar div { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--theia-foreground) 35%, transparent); }
+.cicerone-view-count-number { padding-right: 14px !important; text-align: right; font-variant-numeric: tabular-nums; color: var(--cicerone-dim); }
+
+.cicerone-view-document { padding: 4px 16px 16px; line-height: 1.55; overflow-wrap: anywhere; }
+.cicerone-view-document h1 { font-size: 1.25em; margin: 14px 0 6px; }
+.cicerone-view-document h2 { font-size: 1.08em; margin: 16px 0 4px; }
+.cicerone-view-document h3 { font-size: 1em; margin: 12px 0 4px; }
+.cicerone-view-document p, .cicerone-view-document ul, .cicerone-view-document ol { margin: 0 0 8px; }
+.cicerone-view-document ul, .cicerone-view-document ol { padding-left: 20px; }
+.cicerone-view-document code { font-family: var(--theia-code-font-family); font-size: 0.92em; }
+.cicerone-view-document table { border-collapse: collapse; margin: 0 0 10px; display: block; overflow-x: auto; }
+.cicerone-view-document th { white-space: nowrap; }
+.cicerone-view-document td { overflow-wrap: normal; word-break: normal; min-width: 4.5em; }
+.cicerone-view-document th, .cicerone-view-document td { border: 1px solid var(--cicerone-line); padding: 3px 8px; text-align: left; vertical-align: top; }
+.cicerone-view-link {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 0; background: none; border: none; cursor: pointer;
+    color: var(--theia-textLink-foreground); font: inherit;
+}
+.cicerone-view-link:hover { text-decoration: underline; }

@@ -23,6 +23,8 @@ import { WorkspaceDocuments } from './workspace-documents.js';
  */
 
 export const TOOL_PROVIDER = 'cicerone';
+/** Where workspace skills live: the Agent Skills convention, which Theia's skill service scans too. */
+const WORKSPACE_SKILLS = '.agents/skills';
 export const READ_LINES = 400;
 const READ_CHARS = 32_000;
 const FIND_MAX = 60;
@@ -209,7 +211,7 @@ export class EditTool extends CiceroneTool {
                     const stop = await this.tours.proposeEdit(this.origin(ctx), uri, args.old, args.new, args.why?.trim() || 'No reason given.', ctx.toolCallId);
                     this.activity.annotate(ctx.toolCallId, { uri: uri.toString(), stopId: stop.id, outcome: `stop ${stop.n}` });
                     const problems = await this.problems(uri, args.path);
-                    if (this.presenter.reviewMode === 'after') {
+                    if (this.presenter.writesAtOnce(args.path)) {
                         const problem = await this.tours.accept(stop);
                         if (problem) {
                             await this.tours.reject(stop);
@@ -314,6 +316,7 @@ export class SkillLibrary {
 
     @inject(SkillService) protected readonly skillService: SkillService;
     @inject(FileService) protected readonly fileService: FileService;
+    @inject(WorkspaceDocuments) protected readonly documents: WorkspaceDocuments;
     @inject(ContributionProvider) @named(BuiltinSkillContribution)
     protected readonly builtins: ContributionProvider<BuiltinSkillContribution>;
 
@@ -321,11 +324,47 @@ export class SkillLibrary {
         return this.builtins.getContributions().flatMap(contribution => contribution.getSkills());
     }
 
+    /**
+     * Skills in the workspace that the skill service has not noticed yet. Its file watching lags by
+     * a few seconds, which is exactly the window in which a skill that was just created (by the
+     * agent, or by setting up a profile) gets used for the first time.
+     */
+    protected async unseenWorkspaceSkills(known: Set<string>): Promise<{ name: string, description: string, content: string }[]> {
+        const root = this.documents.root;
+        if (!root) {
+            return [];
+        }
+        const result: { name: string, description: string, content: string }[] = [];
+        try {
+            const directory = await this.fileService.resolve(root.resolve(WORKSPACE_SKILLS));
+            for (const child of directory.children ?? []) {
+                if (!child.isDirectory || known.has(child.name)) {
+                    continue;
+                }
+                try {
+                    const parsed = parseSkillFile((await this.fileService.read(child.resource.resolve('SKILL.md'))).value);
+                    if (parsed.metadata?.name === child.name && parsed.metadata.description) {
+                        result.push({ name: child.name, description: parsed.metadata.description, content: parsed.content.trim() });
+                    }
+                } catch {
+                    // a folder without a readable SKILL.md is not a skill
+                }
+            }
+        } catch {
+            // no skills folder in this workspace
+        }
+        return result;
+    }
+
     /** Workspace and user skills first, built-in ones after; a workspace skill shadows a built-in of the same name. */
     async list(): Promise<SkillSummary[]> {
         await this.skillService.ready;
         const found = this.skillService.getSkills().map(skill => ({ name: skill.qualifiedName, description: skill.description }));
         const names = new Set(found.map(skill => skill.name));
+        for (const skill of await this.unseenWorkspaceSkills(names)) {
+            found.push({ name: skill.name, description: skill.description });
+            names.add(skill.name);
+        }
         return [...found, ...this.builtinSkills().filter(skill => !names.has(skill.name)).map(({ name, description }) => ({ name, description }))];
     }
 
@@ -336,6 +375,10 @@ export class SkillLibrary {
             const location = skill.location.includes('://') ? new URI(skill.location) : URI.fromFilePath(skill.location);
             const raw = (await this.fileService.read(location)).value;
             return parseSkillFile(raw).content.trim();
+        }
+        const unseen = (await this.unseenWorkspaceSkills(new Set())).find(candidate => candidate.name === name);
+        if (unseen) {
+            return unseen.content;
         }
         const builtin = this.builtinSkills().find(candidate => candidate.name === name);
         if (builtin) {

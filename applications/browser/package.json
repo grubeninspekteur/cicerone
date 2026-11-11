@@ -33,7 +33,8 @@
     "@theia/ai-google": "1.77.0",
     "@theia/ai-ollama": "1.77.0",
     "@cicerone/litellm": "0.1.0",
-    "@cicerone/core": "0.1.0"
+    "@cicerone/core": "0.1.0",
+    "@cicerone/shape": "0.1.0"
   },
   "devDependencies": {
     "@theia/cli": "1.77.0"
@@ -60,7 +61,14 @@
             "edit": "always_allow",
             "show": "always_allow",
             "skill": "always_allow"
-          }
+          },
+          "[markdown]": {
+            "editor.wordWrap": "on"
+          },
+          "[plaintext]": {
+            "editor.wordWrap": "on"
+          },
+          "diffEditor.wordWrap": "inherit"
         }
       }
     }

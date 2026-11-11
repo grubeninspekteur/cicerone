@@ -1,6 +1,8 @@
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { Emitter, Event, generateUuid, URI } from '@theia/core';
+import { StorageService } from '@theia/core/lib/browser';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { countOccurrences, Stop, Tour } from '../common/tour.js';
 import { WorkspaceDocuments } from './workspace-documents.js';
 
@@ -12,6 +14,8 @@ export interface TourOrigin {
 }
 
 export class ProposalError extends Error { }
+
+const MAX_STORED_TOURS = 20;
 
 /** A file as the proposals would leave it, and what each stop does on the way there. */
 interface Chain {
@@ -36,8 +40,11 @@ export class TourService {
 
     @inject(WorkspaceDocuments) protected readonly documents: WorkspaceDocuments;
     @inject(FileService) protected readonly fileService: FileService;
+    @inject(StorageService) protected readonly storage: StorageService;
+    @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
 
     protected readonly tours: Tour[] = [];
+    protected saveTimer: ReturnType<typeof setTimeout> | undefined;
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
     protected readonly onDidAddStopEmitter = new Emitter<Stop>();
@@ -64,6 +71,41 @@ export class TourService {
                 this.refresh();
             }
         });
+        this.workspaceService.roots.then(() => this.restore());
+    }
+
+    /** Tours are kept per workspace, so a pending proposal is still there after the window is reloaded or closed. */
+    protected get storageKey(): string | undefined {
+        const root = this.documents.root;
+        return root && `cicerone.tours:${root.toString()}`;
+    }
+
+    protected async restore(): Promise<void> {
+        const key = this.storageKey;
+        const stored = key ? await this.storage.getData<Tour[]>(key) : undefined;
+        if (!Array.isArray(stored) || this.tours.length > 0) {
+            return;
+        }
+        for (const tour of stored) {
+            // Whatever was running when the window closed is not running any more.
+            this.tours.push({ ...tour, running: false });
+            // The agent heard about these decisions, or its conversation is gone; either way they are not news.
+            tour.stops.forEach(stop => this.reported.set(stop.id, stop.state));
+        }
+        this._revision++;
+        this.onDidChangeEmitter.fire();
+        this.refresh();
+    }
+
+    protected save(): void {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = setTimeout(() => {
+            const key = this.storageKey;
+            if (key) {
+                // Recent tours only: storage is small, and a tour from last month is history, not work in progress.
+                this.storage.setData(key, this.tours.slice(-MAX_STORED_TOURS)).catch(() => { /* full or unavailable: tours then last for the session */ });
+            }
+        }, 400);
     }
 
     get revision(): number { return this._revision; }
@@ -427,6 +469,7 @@ export class TourService {
     protected changed(): void {
         this._revision++;
         this.onDidChangeEmitter.fire();
+        this.save();
     }
 }
 

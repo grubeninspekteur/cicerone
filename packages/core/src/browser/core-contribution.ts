@@ -8,7 +8,7 @@ import { ChatService } from '@theia/ai-chat';
 import { ActivityService } from './activity-service.js';
 import { ACTIVITY_WIDGET_ID, ActivityWidget } from './activity-widget.js';
 import { MODEL_PREF } from './cicerone-agent.js';
-import { FOLLOW_PREF, REVIEW_PREF, StopPresenter } from './stop-presenter.js';
+import { FOLLOW_PREF, REVIEW_PREF, StopPresenter, WRITE_AT_ONCE_PREF } from './stop-presenter.js';
 import { TourService } from './tour-service.js';
 import { TOUR_WIDGET_ID, TourCommandIds, TourWidget } from './tour-widget.js';
 
@@ -29,7 +29,16 @@ export const CiceronePreferenceSchema: PreferenceSchema = {
                 'Changes are written as the agent makes them, so it can test its own work. You review the tour afterwards and can undo any stop.'
             ],
             default: 'before',
+            scope: PreferenceScope.User,
             description: 'When you review the agent\'s changes: before they are written, or after.'
+        },
+        [WRITE_AT_ONCE_PREF]: {
+            type: 'array',
+            items: { type: 'string' },
+            default: [],
+            scope: PreferenceScope.User,
+            markdownDescription: 'Files whose changes are written at once even when changes otherwise wait for you, as globs: e.g. `notes/**` or `test/**`. ' +
+                'They still appear as stops and can be undone. Only your user settings count; a workspace cannot set this.'
         },
         [MODEL_PREF]: {
             type: 'string',

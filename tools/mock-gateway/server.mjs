@@ -153,7 +153,8 @@ const server = createServer(async (request, response) => {
                 systemTokens: estimateTokens(system), toolTokens: estimateTokens(body.tools), promptTokens: usage.prompt_tokens,
                 reply: step.call ? step.call.map(call => call.name).join('+') : 'text'
             }));
-            if (process.env.MOCK_GATEWAY_DUMP) {
+            if (process.env.MOCK_GATEWAY_DUMP && body.tools?.length) {
+                // The last agent request, verbatim: the place to look when you want to know what the model was really sent.
                 (await import('node:fs')).writeFileSync(process.env.MOCK_GATEWAY_DUMP, JSON.stringify(body, undefined, 2));
             }
             return;

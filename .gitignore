@@ -2,8 +2,8 @@ node_modules/
 lib/
 *.tsbuildinfo
 applications/browser/src-gen/
-applications/browser/gen-webpack*.js
-applications/browser/webpack.config.js
+applications/browser/gen-esbuild.*.mjs
+applications/browser/esbuild.mjs
 plugins/
 .DS_Store
 *.log

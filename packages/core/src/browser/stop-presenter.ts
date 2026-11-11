@@ -2,6 +2,7 @@ import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { PreferenceService, Resource, ResourceResolver, URI } from '@theia/core';
 import { DiffUris, open, OpenerService } from '@theia/core/lib/browser';
 import { EditorManager, EditorWidget, TextEditor } from '@theia/editor/lib/browser';
+import { globToRegExp } from '../common/glob.js';
 import { LineSpan, locate, Stop } from '../common/tour.js';
 import { TourService } from './tour-service.js';
 import { WorkspaceDocuments } from './workspace-documents.js';
@@ -9,6 +10,7 @@ import { WorkspaceDocuments } from './workspace-documents.js';
 export const CICERONE_SCHEME = 'cicerone';
 export const FOLLOW_PREF = 'cicerone.followAgent';
 export const REVIEW_PREF = 'cicerone.review';
+export const WRITE_AT_ONCE_PREF = 'cicerone.review.writeAtOnce';
 /** `before`: changes wait for the human. `after`: changes are written as they are made and reviewed afterwards. */
 export type ReviewMode = 'before' | 'after';
 
@@ -95,8 +97,30 @@ export class StopPresenter {
         return this.preferences.get<boolean>(FOLLOW_PREF, true);
     }
 
+    /**
+     * Both review settings are read from the user's own settings only. A setting in the workspace is a
+     * file the agent can edit, and the agent must not be able to widen its own leash.
+     */
     get reviewMode(): ReviewMode {
-        return this.preferences.get<ReviewMode>(REVIEW_PREF, 'before') === 'after' ? 'after' : 'before';
+        return this.preferences.inspect<ReviewMode>(REVIEW_PREF)?.globalValue === 'after' ? 'after' : 'before';
+    }
+
+    /**
+     * Whether a change to this file is written at once. Decided by rules the human set (the review
+     * mode, and paths they declared low-stakes), never by how sure the model says it is.
+     */
+    writesAtOnce(path: string): boolean {
+        if (this.reviewMode === 'after') {
+            return true;
+        }
+        const globs = this.preferences.inspect<string[]>(WRITE_AT_ONCE_PREF)?.globalValue;
+        return Array.isArray(globs) && globs.some(glob => {
+            try {
+                return typeof glob === 'string' && globToRegExp(glob).test(path);
+            } catch {
+                return false;
+            }
+        });
     }
 
     /** True once the human has picked a stop, or the agent has finished and handed the tour over. */
