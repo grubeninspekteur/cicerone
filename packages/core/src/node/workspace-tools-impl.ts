@@ -6,7 +6,8 @@ import { rgPath } from '@vscode/ripgrep';
 import { globToRegExp } from '../common/glob.js';
 import { FindOptions, FindResult, RunResult, WorkspaceTools } from '../common/workspace-tools.js';
 
-const MAX_LINE = 220;
+/** Characters of context kept on each side of a match. */
+const EXCERPT = 90;
 const MAX_CAPTURE = 256 * 1024;
 const SKIPPED_DIRECTORIES = new Set(['.git', 'node_modules', 'lib', 'dist', 'build', 'target', '.venv']);
 
@@ -31,11 +32,17 @@ export class WorkspaceToolsImpl implements WorkspaceTools {
             args.push('--glob', options.glob);
         }
         if (options.text !== undefined) {
-            args.push('--line-number', '--no-heading', '--smart-case', '--max-columns', String(MAX_LINE), '--max-columns-preview');
-            if (!options.regex) {
-                args.push('--fixed-strings');
+            args.push('--line-number', '--no-heading', '--smart-case');
+            if (options.wholeLines) {
+                if (!options.regex) {
+                    args.push('--fixed-strings');
+                }
+                args.push('--regexp', options.text, '.');
+            } else {
+                // Ask for the match with some text on either side instead of the line it is on.
+                const pattern = options.regex ? options.text : escapeRegExp(options.text);
+                args.push('--only-matching', '--regexp', `.{0,${EXCERPT}}(?:${pattern}).{0,${EXCERPT}}`, '.');
             }
-            args.push('--regexp', options.text, '.');
         } else {
             args.push('--files');
         }
@@ -81,9 +88,7 @@ export class WorkspaceToolsImpl implements WorkspaceTools {
     protected async findWithNode(root: string, options: FindOptions): Promise<FindResult> {
         const globPattern = options.glob ? globToRegExp(options.glob) : undefined;
         const matcher = options.text === undefined ? undefined
-            : options.regex ? new RegExp(options.text, /[A-Z]/.test(options.text) ? '' : 'i')
-                : undefined;
-        const needle = options.text?.toLowerCase();
+            : new RegExp(options.regex ? options.text : escapeRegExp(options.text), /[A-Z]/.test(options.text) ? '' : 'i');
         const lines: string[] = [];
         let total = 0;
         const add = (line: string) => {
@@ -119,8 +124,10 @@ export class WorkspaceToolsImpl implements WorkspaceTools {
                     continue;
                 }
                 content.split('\n').forEach((text, index) => {
-                    if (matcher ? matcher.test(text) : text.toLowerCase().includes(needle!)) {
-                        add(`${relative}:${index + 1}: ${text.trim().slice(0, MAX_LINE)}`);
+                    const hit = matcher!.exec(text);
+                    if (hit) {
+                        const excerpt = options.wholeLines ? text : text.slice(Math.max(0, hit.index - EXCERPT), hit.index + hit[0].length + EXCERPT);
+                        add(`${relative}:${index + 1}: ${excerpt.trim()}`);
                     }
                 });
             }
@@ -159,4 +166,8 @@ export class WorkspaceToolsImpl implements WorkspaceTools {
             child.on('close', finish);
         });
     }
+}
+
+function escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

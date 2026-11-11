@@ -49,8 +49,8 @@ export class ViewDataService {
             switch (spec.kind) {
                 case 'outline': {
                     const depth = Math.min(Math.max(spec.depth ?? 2, 1), 6);
-                    const found = await this.tools.find(rootPath, { text: `^#{1,${depth}}\\s+\\S`, regex: true, glob: spec.files, max: MAX_MATCHES });
-                    const groups = this.byFile(found.lines.map(parseMatch).filter(isDefined).map(match => {
+                    const found = await this.tools.find(rootPath, { text: `^#{1,${depth}}\\s+\\S`, regex: true, wholeLines: true, glob: spec.files, max: MAX_MATCHES });
+                    const groups = this.byFile(found.lines.map(parseMatch).filter(isVisible).map(match => {
                         const heading = /^(#+)\s+(.*?)\s*#*$/.exec(match.text);
                         return { label: heading ? heading[2] : match.text, path: match.path, line: match.line, level: heading ? heading[1].length : 1 };
                     }));
@@ -67,22 +67,24 @@ export class ViewDataService {
                     return { kind: 'groups', groups, total: found.total, truncated: found.total > found.lines.length, flat: false };
                 }
                 case 'matches': {
-                    const found = await this.tools.find(rootPath, { text: spec.pattern, regex: true, glob: spec.files, max: MAX_MATCHES });
+                    const found = await this.tools.find(rootPath, { text: spec.pattern, regex: true, wholeLines: true, glob: spec.files, max: MAX_MATCHES });
                     const expression = new RegExp(spec.pattern!);
-                    const items: ViewItem[] = found.lines.map(parseMatch).filter(isDefined).map(match => {
+                    const items: ViewItem[] = found.lines.map(parseMatch).filter(isVisible).map(match => {
                         const hit = expression.exec(match.text);
                         const label = (hit?.[1] ?? hit?.[0] ?? match.text).trim();
                         return { label, path: match.path, line: match.line, detail: label === match.text ? undefined : match.text };
                     });
                     let groups: ViewGroup[];
                     if (spec.group === 'match') {
-                        const byLabel = new Map<string, ViewItem[]>();
+                        // "Clause 8.1" and "clause 8.1" are the same thing to whoever is looking for it.
+                        const byLabel = new Map<string, ViewGroup>();
                         for (const item of items) {
-                            const list = byLabel.get(item.label) ?? [];
-                            list.push({ ...item, label: `${item.path}:${item.line}`, detail: item.detail ?? item.label });
-                            byLabel.set(item.label, list);
+                            const key = item.label.toLowerCase();
+                            const group = byLabel.get(key) ?? { label: item.label, items: [] };
+                            group.items.push({ ...item, label: `${item.path}:${item.line}`, detail: item.detail ?? item.label });
+                            byLabel.set(key, group);
                         }
-                        groups = [...byLabel].sort(([a], [b]) => a.localeCompare(b)).map(([label, list]) => ({ label, items: list }));
+                        groups = [...byLabel.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
                     } else if (spec.group === 'none') {
                         groups = [{ label: '', items: items.map(item => ({ ...item, detail: `${item.path}:${item.line}` })) }];
                     } else {
@@ -146,7 +148,7 @@ export class ViewDataService {
         const root = this.workbench.root!;
         const listed = await this.tools.find(rootPath, { glob, max: MAX_FILES });
         const result: { path: string, text: string }[] = [];
-        for (const path of listed.lines) {
+        for (const path of listed.lines.filter(candidate => !isHidden(candidate))) {
             try {
                 const text = (await this.fileService.read(root.resolve(path))).value;
                 if (text.length <= MAX_FILE_CHARS && !text.includes('\u0000')) {
@@ -165,10 +167,16 @@ function parseMatch(line: string): { path: string, line: number, text: string } 
     return match ? { path: match[1], line: Number(match[2]), text: match[3] } : undefined;
 }
 
-function isDefined<T>(value: T | undefined): value is T {
-    return value !== undefined;
-}
 
 function baseName(path: string): string {
     return path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
+}
+
+/** Dot-folders (.agents, .cicerone, .git) hold the workbench's own machinery, not the user's material. */
+function isHidden(path: string): boolean {
+    return /(^|\/)\./.test(path);
+}
+
+function isVisible<T extends { path: string }>(match: T | undefined): match is T {
+    return match !== undefined && !isHidden(match.path);
 }

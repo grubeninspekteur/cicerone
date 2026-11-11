@@ -81,11 +81,20 @@ export class LiteLlmGatewayImpl implements LiteLlmGateway {
             const cause = (error as { cause?: { code?: string, message?: string } })?.cause;
             throw new Error(`Cannot reach ${url}: ${cause?.code ?? cause?.message ?? (error as Error).message}`);
         }
-        if (response.status === 401 || response.status === 403) {
-            throw new Error(`The gateway refused the key (HTTP ${response.status}).`);
-        }
         if (!response.ok) {
-            throw new Error(`${url} answered HTTP ${response.status}.`);
+            // Gateways explain themselves in the body (LiteLLM answers a malformed key with a 400, not a 401); pass that on.
+            const body = await response.text().catch(() => '');
+            let detail = body;
+            try {
+                const parsed = JSON.parse(body) as { error?: { message?: unknown } | string, detail?: unknown };
+                const message = typeof parsed.error === 'string' ? parsed.error : parsed.error?.message ?? parsed.detail;
+                detail = typeof message === 'string' ? message : body;
+            } catch {
+                // not JSON; show it as it is
+            }
+            detail = detail.replace(/\s+/g, ' ').trim().slice(0, 240);
+            const refused = response.status === 401 || response.status === 403 || /auth|api key/i.test(detail);
+            throw new Error(`${refused ? 'The gateway refused the key' : `${url} answered`} (HTTP ${response.status})${detail ? `: ${detail}` : '.'}`);
         }
         return response.json();
     }

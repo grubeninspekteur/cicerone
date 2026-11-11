@@ -5,6 +5,11 @@ export interface FindOptions {
     text?: string;
     regex?: boolean;
     glob?: string;
+    /**
+     * Return matching lines whole. By default a match comes back as an excerpt around it, because in
+     * prose a "line" is a paragraph and the match may sit a thousand characters in.
+     */
+    wholeLines?: boolean;
     /** Upper bound on returned lines. */
     max: number;
 }
