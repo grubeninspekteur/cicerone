@@ -1,5 +1,5 @@
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
-import { Emitter, Event, generateUuid, URI } from '@theia/core';
+import { CancellationToken, Emitter, Event, URI, generateUuid } from '@theia/core';
 import { StorageService } from '@theia/core/lib/browser';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
@@ -14,6 +14,14 @@ export interface TourOrigin {
 }
 
 export class ProposalError extends Error { }
+
+export type ReviewOutcome = 'reviewed' | 'skipped' | 'cancelled';
+
+export interface ReviewGate {
+    sessionId: string;
+    /** What will happen once the review is done, e.g. the command line. */
+    reason: string;
+}
 
 const MAX_STORED_TOURS = 20;
 
@@ -61,6 +69,7 @@ export class TourService {
     protected _revision = 0;
     protected refreshing: Promise<void> = Promise.resolve();
     protected readonly reported = new Map<string, string>();
+    protected _gate: (ReviewGate & { promise: Promise<ReviewOutcome>, finish(outcome: ReviewOutcome): void }) | undefined;
 
     @postConstruct()
     protected init(): void {
@@ -451,7 +460,68 @@ export class TourService {
             rejected.length ? `rejected ${rejected.join(', ')}` : '',
             stale.length ? `no longer applicable ${stale.join(', ')}` : ''
         ].filter(Boolean);
-        return parts.length ? `[review of your stops: ${parts.join('; ')}]` : undefined;
+        if (parts.length === 0) {
+            return undefined;
+        }
+        // The decisions are now with the agent; views that offered to pass them on should stop offering.
+        this.onDidChangeEmitter.fire();
+        return `[review of your stops: ${parts.join('; ')}]`;
+    }
+
+    /** Whether the human has decided something the agent has not been told yet. Does not consume it. */
+    hasUnreportedReview(sessionId: string): boolean {
+        return this.tours.some(tour => tour.sessionId === sessionId
+            && Tour.changes(tour).some(stop => stop.state !== 'pending' && (this.reported.get(stop.id) ?? 'pending') !== stop.state));
+    }
+
+    /** Proposals of this conversation that are still waiting for a decision. */
+    pendingIn(sessionId: string): Stop[] {
+        return this.tours.filter(tour => tour.sessionId === sessionId).flatMap(tour => Tour.pending(tour));
+    }
+
+    /** What the agent is waiting for the human's review to do, if it is waiting. */
+    get gate(): ReviewGate | undefined {
+        return this._gate && { sessionId: this._gate.sessionId, reason: this._gate.reason };
+    }
+
+    /**
+     * The agent's checkpoint. A step that only makes sense on the reviewed files (running the tests
+     * against its own fix) calls this and is held until the human has decided every pending proposal
+     * of the conversation, or says to go ahead without them. Resolves at once when nothing is pending.
+     */
+    awaitReview(sessionId: string, reason: string, cancellation?: CancellationToken): Promise<ReviewOutcome> {
+        if (this.pendingIn(sessionId).length === 0) {
+            return Promise.resolve('reviewed');
+        }
+        if (this._gate?.sessionId === sessionId) {
+            // Several steps of one turn wait behind the same review.
+            return this._gate.promise;
+        }
+        let settle: (outcome: ReviewOutcome) => void = () => undefined;
+        const promise = new Promise<ReviewOutcome>(resolve => settle = resolve);
+        const finish = (outcome: ReviewOutcome) => {
+            if (this._gate?.promise === promise) {
+                this._gate = undefined;
+                watching.dispose();
+                cancelling?.dispose();
+                this.onDidChangeEmitter.fire();
+                settle(outcome);
+            }
+        };
+        const watching = this.onDidChange(() => {
+            if (this.pendingIn(sessionId).length === 0) {
+                finish('reviewed');
+            }
+        });
+        const cancelling = cancellation?.onCancellationRequested(() => finish('cancelled'));
+        this._gate = { sessionId, reason, promise, finish };
+        this.onDidChangeEmitter.fire();
+        return promise;
+    }
+
+    /** The human's "go ahead without them". */
+    skipGate(): void {
+        this._gate?.finish('skipped');
     }
 
     removeTour(tour: Tour): void {

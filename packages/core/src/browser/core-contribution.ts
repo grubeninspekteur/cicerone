@@ -58,6 +58,7 @@ export namespace CiceroneCommands {
     export const REJECT: Command = { id: 'cicerone.tour.reject', label: 'Tour: Reject Current Stop', category };
     export const ACCEPT_ALL: Command = { id: 'cicerone.tour.acceptAll', label: 'Tour: Accept All Pending Stops', category };
     export const DISCUSS: Command = { id: TourCommandIds.DISCUSS, label: 'Tour: Discuss Current Stop with the Agent…', category };
+    export const CONTINUE: Command = { id: TourCommandIds.CONTINUE, label: 'Tour: Tell the Agent What You Decided and Let It Continue', category };
     export const TOGGLE_FOLLOW: Command = { id: 'cicerone.follow.toggle', label: 'Toggle Following the Agent in the Editor', category };
     export const TOGGLE_REVIEW: Command = { id: 'cicerone.review.toggle', label: 'Toggle Reviewing Changes Before or After They Are Written', category };
 }
@@ -142,7 +143,7 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
         }
         this.statusBar.setElement(NO_MODEL_STATUS_ID, {
             text: '$(plug) No model connected',
-            tooltip: 'The agent has no language model to talk to. Click to connect a LiteLLM gateway, or add a provider key in Settings under AI Features.',
+            tooltip: 'The agent has no language model to talk to. Click to connect a LiteLLM gateway, or set up another provider in the AI Configuration view.',
             alignment: StatusBarAlignment.LEFT,
             priority: 1001,
             backgroundColor: 'var(--theia-statusBarItem-warningBackground)',
@@ -174,7 +175,12 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
         const pending = this.tours.pendingCount();
         let text: string | undefined;
         let tooltip = 'Open the tour';
-        if (entry) {
+        const gate = this.tours.gate;
+        if (gate) {
+            const waiting = this.tours.pendingIn(gate.sessionId).length;
+            text = `$(compass) Cicerone waits for your review: ${waiting} ${waiting === 1 ? 'stop' : 'stops'}, then ${shorten(gate.reason)}`;
+            tooltip = 'The agent wants to run a command that needs its proposed changes in the files. Review them in the tour.';
+        } else if (entry) {
             text = entry.status === 'awaiting-approval'
                 ? `$(shield) Cicerone needs your approval: ${entry.tool} ${shorten(entry.target)}`
                 : `$(loading~spin) Cicerone: ${entry.tool} ${shorten(entry.target)}`;
@@ -187,7 +193,7 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
         if (text) {
             this.statusBar.setElement(STATUS_ID, {
                 text, tooltip, alignment: StatusBarAlignment.LEFT, priority: 1000,
-                command: this.activity.runningTurn ? 'cicerone.activity.toggle' : 'cicerone.tour.toggle'
+                command: this.activity.runningTurn && !gate ? 'cicerone.activity.toggle' : 'cicerone.tour.toggle'
             });
         } else {
             this.statusBar.removeElement(STATUS_ID);
@@ -214,6 +220,7 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
             return tour && widget.acceptAll(tour);
         }));
         registry.registerCommand(CiceroneCommands.DISCUSS, { execute: (stopId?: string) => this.discuss(stopId) });
+        registry.registerCommand(CiceroneCommands.CONTINUE, { execute: (tourId?: string) => this.continueAfterReview(tourId) });
         registry.registerCommand(CiceroneCommands.TOGGLE_REVIEW, {
             execute: () => this.preferences.set(REVIEW_PREF, this.presenter.reviewMode === 'before' ? 'after' : 'before', PreferenceScope.User)
         });
@@ -227,6 +234,22 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
         registry.registerKeybinding({ command: CiceroneCommands.PREVIOUS.id, keybinding: 'alt+k' });
         registry.registerKeybinding({ command: CiceroneCommands.ACCEPT.id, keybinding: 'alt+enter' });
         registry.registerKeybinding({ command: CiceroneCommands.REJECT.id, keybinding: 'alt+backspace' });
+    }
+
+    /**
+     * For a turn that ended with proposals on the table: once they are decided, one click hands the
+     * decisions back to the agent so it can go on (typically: verify what was accepted).
+     */
+    protected async continueAfterReview(tourId?: string): Promise<void> {
+        const tour = this.tours.getTour(tourId) ?? this.tours.currentTour;
+        const session = tour && this.chatService.getSession(tour.sessionId);
+        if (!tour || !session) {
+            this.messages.warn('The conversation this tour belongs to is no longer open.');
+            return;
+        }
+        this.chatService.setActiveSession(session.id, { focus: false });
+        // What was accepted and rejected travels with the message; the agent adds it to every request.
+        await this.chatService.sendRequest(session.id, { text: 'I have reviewed your stops. Continue from there.' });
     }
 
     /** Sends the human's remark about a stop back to the agent, in the conversation the stop came from. */

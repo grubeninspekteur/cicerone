@@ -183,3 +183,23 @@
 .cicerone-entry.awaiting-approval .cicerone-entry-outcome { color: var(--cicerone-accent); }
 .cicerone-entry.failed .cicerone-entry-outcome { color: var(--cicerone-bad); }
 .cicerone-entry-time { text-align: right; color: var(--cicerone-dim); font-variant-numeric: tabular-nums; font-size: 0.92em; }
+
+/* The agent's checkpoint: it is waiting for the review, or the review is done and it has not heard yet. */
+.cicerone-gate {
+    display: flex; gap: 8px; align-items: flex-start; margin: 0 10px 10px; padding: 8px 10px; border-radius: 4px; line-height: 1.45;
+    border: 1px solid var(--theia-editorWarning-foreground); background: color-mix(in srgb, var(--theia-editorWarning-foreground) 10%, transparent);
+}
+.cicerone-gate.done { border-color: var(--theia-focusBorder); background: color-mix(in srgb, var(--theia-focusBorder) 10%, transparent); }
+.cicerone-gate > .codicon { flex: 0 0 auto; margin-top: 2px; color: var(--theia-editorWarning-foreground); }
+.cicerone-gate.done > .codicon { color: var(--theia-focusBorder); }
+.cicerone-gate code { font-family: var(--theia-code-font-family); font-size: 0.92em; }
+.cicerone-gate-actions { margin-top: 6px; }
+.cicerone-gate-actions .theia-button { margin-left: 0; }
+
+/* The empty chat. */
+.cicerone-welcome { box-sizing: border-box; max-width: 100%; text-align: center; padding: 24px 20px; line-height: 1.5; overflow-wrap: break-word; }
+.cicerone-welcome h3 { margin: 6px 0 8px; font-size: 1.15em; font-weight: 600; }
+.cicerone-welcome p { margin: 0 auto 8px; max-width: 34em; }
+.cicerone-welcome-icon { font-size: 28px !important; opacity: 0.7; }
+.cicerone-welcome-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
+.cicerone-welcome-actions .theia-button { margin: 0; }

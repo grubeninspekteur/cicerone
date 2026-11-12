@@ -40,6 +40,32 @@ do not pick a side: add the question under "Not yet placed". One \`edit\` per ro
 
 export const scenarios = [
     {
+        // samples/code: a model that does not wait. It proposes its fix and runs the tests in the same breath,
+        // which is what real models do. The run must be held until the proposals are reviewed.
+        match: /in one go/i,
+        steps: [
+            { call: [call('read', { path: 'src/slug.js' })] },
+            {
+                call: [
+                    call('edit', {
+                        path: 'src/slug.js',
+                        old: "    const slug = title\n        .toLowerCase()\n",
+                        new: "    const slug = title\n        .normalize('NFKD')\n        .replace(/[\\u0300-\\u036f]/g, '')\n        .toLowerCase()\n",
+                        why: 'Splits accented letters into base letter plus accent and drops the accent, so `è` survives as `e` instead of turning into a hyphen.'
+                    }),
+                    call('edit', {
+                        path: 'src/slug.js',
+                        old: '    return slug.slice(0, MAX_LENGTH);',
+                        new: "    return slug.slice(0, MAX_LENGTH).replace(/-$/, '');",
+                        why: 'Cutting at 60 characters can land right after a hyphen, so the slug needs trimming once more after the cut.'
+                    })
+                ]
+            },
+            { call: [call('run', { command: 'npm test --silent', why: 'Checks the two fixes against the test suite.' })] },
+            { say: 'I proposed two fixes and ran the tests once you had reviewed them; the last stop shows the result against what you accepted.' }
+        ]
+    },
+    {
         // samples/contract, context action "Check Defined Terms"
         match: /defined-terms-check/,
         steps: [

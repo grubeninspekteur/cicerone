@@ -1,4 +1,5 @@
 import { PreferenceSchema } from '@theia/core';
+import { AI_CORE_PREFERENCES_TITLE, MODEL_PROVIDER_TYPE_DETAIL } from '@theia/ai-core/lib/common/ai-core-preferences';
 
 export const LITELLM_GATEWAY_PATH = '/services/cicerone/litellm-gateway';
 export const LITELLM_PROVIDER_ID = 'liteLlm';
@@ -16,45 +17,47 @@ export const LiteLlmPreferencesSchema: PreferenceSchema = {
     properties: {
         [BASE_URL_PREF]: {
             type: 'string',
+            // Makes the gateway a provider of its own on the Models page of the AI Configuration view.
+            typeDetails: { [MODEL_PROVIDER_TYPE_DETAIL]: { label: 'LiteLLM Gateway' } },
             default: '',
             markdownDescription: 'Base URL of a [LiteLLM](https://docs.litellm.ai/docs/simple_proxy) gateway, e.g. `http://localhost:4000`. ' +
                 'Every chat model the gateway serves is discovered and offered to all agents. ' +
                 'Any OpenAI-compatible gateway works; LiteLLM additionally reports which models are chat models.',
-            title: 'LiteLLM gateway URL'
+            title: AI_CORE_PREFERENCES_TITLE
         },
         [API_KEY_PREF]: {
             type: 'string',
             default: '',
             markdownDescription: 'Virtual key or master key for the gateway. Leave empty for a gateway without authentication. ' +
                 '**Stored in clear text** in your settings; alternatively set `LITELLM_API_KEY` in the environment.',
-            title: 'LiteLLM key'
+            title: AI_CORE_PREFERENCES_TITLE
         },
         [HEADERS_PREF]: {
             type: 'object',
             additionalProperties: { type: 'string' },
             default: {},
             markdownDescription: 'Additional HTTP headers sent with every gateway request, e.g. for a reverse proxy in front of it.',
-            title: 'LiteLLM headers'
+            title: AI_CORE_PREFERENCES_TITLE
         },
         [MODEL_OVERRIDES_PREF]: {
             type: 'array',
             items: { type: 'string' },
             default: [],
             markdownDescription: 'If set, exactly these model names are registered and the gateway is not asked what it offers.',
-            title: 'LiteLLM models'
+            title: AI_CORE_PREFERENCES_TITLE
         },
         [DEFAULT_MODEL_PREF]: {
             type: 'string',
             default: '',
             markdownDescription: 'Gateway model that stands in wherever no other model is configured or available (the `default/…` model aliases all agents use). ' +
                 'Empty: the first chat model the gateway lists.',
-            title: 'LiteLLM default model'
+            title: AI_CORE_PREFERENCES_TITLE
         },
         [ALLOW_ENV_PREF]: {
             type: 'boolean',
             default: false,
             markdownDescription: 'Allow using `LITELLM_BASE_URL` / `LITELLM_API_KEY` from the environment.',
-            title: 'Use LiteLLM settings from the environment'
+            title: AI_CORE_PREFERENCES_TITLE
         }
     }
 };

@@ -272,7 +272,8 @@ export class RunTool extends CiceroneTool {
     getTool(): ToolRequest {
         return this.define<{ command: string, why?: string }>(
             'run',
-            'Run a shell command in the workspace root (tests, builds, linters, word counts). Sees files as written, not held proposals. ' +
+            'Run a shell command in the workspace root (tests, builds, linters, word counts). It runs on the files as written: ' +
+            'if proposals of yours are still held, it first waits for the user to review them and tells you what they decided. ' +
             'Returns exit code and the end of the output.',
             {
                 command: { type: 'string', description: 'The command line.' },
@@ -281,12 +282,25 @@ export class RunTool extends CiceroneTool {
             ['command'],
             async (args, ctx) => {
                 const root = this.documents.requireRoot();
+                const sessionId = ctx.request.session.id;
+                let review = '';
+                if (this.tours.pendingIn(sessionId).length > 0) {
+                    // Running now would test the files without the agent's own changes and report a failure that means nothing.
+                    this.activity.annotate(ctx.toolCallId, { outcome: 'waiting for your review' });
+                    const outcome = await this.tours.awaitReview(sessionId, args.command, ctx.cancellationToken);
+                    if (outcome === 'cancelled') {
+                        return createToolCallError('Cancelled by the user.');
+                    }
+                    review = outcome === 'skipped'
+                        ? '[the user had this run without reviewing: your held proposals are NOT in the files]\n'
+                        : `${this.tours.reviewNote(sessionId) ?? '[review of your stops: nothing accepted]'}\n`;
+                }
                 const result = await this.workspaceTools.run(root.path.fsPath(), args.command, RUN_TIMEOUT_MS);
                 const seconds = (result.durationMs / 1000).toFixed(1);
                 const status = result.timedOut ? `timed out after ${seconds}s` : `exit ${result.exitCode} · ${seconds}s`;
                 const stop = this.tours.addResult(this.origin(ctx), args.command, result.exitCode, result.output.trimEnd(), args.why?.trim() || '', ctx.toolCallId);
                 this.activity.annotate(ctx.toolCallId, { outcome: status, stopId: stop.id });
-                const text = `[${status}]\n${elide(result.output.trimEnd())}`;
+                const text = `${review}[${status}]\n${elide(result.output.trimEnd())}`;
                 return result.exitCode === 0 && !result.timedOut ? text : createToolCallError(text);
             },
             args => args.command,

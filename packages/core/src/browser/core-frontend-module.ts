@@ -7,8 +7,10 @@ import {
 import { Agent, ToolProvider } from '@theia/ai-core';
 import { ChatAgent, DefaultChatAgentId } from '@theia/ai-chat';
 import { WORKSPACE_TOOLS_PATH, WorkspaceTools } from '../common/workspace-tools.js';
+import { ChatWelcomeMessageProvider } from '@theia/ai-chat-ui/lib/browser/chat-tree-view';
+import { ChatSessionsWelcomeMessageProvider } from '@theia/ai-ide/lib/browser/chat-sessions-welcome-message-provider';
 import { ActivityService } from './activity-service.js';
-import { keepAiSettingsInSettingsView } from './ai-settings-visibility.js';
+import { CiceroneWelcomeMessageProvider } from './welcome-message.js';
 import { ActivityWidget } from './activity-widget.js';
 import { BuiltinSkillContribution } from './builtin-skills.js';
 import { EditValidator } from './edit-validator.js';
@@ -20,9 +22,15 @@ import { TourService } from './tour-service.js';
 import { TourWidget } from './tour-widget.js';
 import { WorkspaceDocuments } from './workspace-documents.js';
 
-keepAiSettingsInSettingsView();
+export default new ContainerModule((bind, unbind, isBound, rebind) => {
+    // The empty chat introduces this product, not the Theia IDE's agents (which ship switched off here).
+    if (isBound(ChatWelcomeMessageProvider)) {
+        unbind(ChatWelcomeMessageProvider);
+    }
+    bind(CiceroneWelcomeMessageProvider).toSelf().inSingletonScope();
+    bind(ChatWelcomeMessageProvider).toService(CiceroneWelcomeMessageProvider);
+    bind(ChatWelcomeMessageProvider).to(ChatSessionsWelcomeMessageProvider).inSingletonScope();
 
-export default new ContainerModule((bind, _unbind, isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: CiceronePreferenceSchema });
 
     bind(WorkspaceTools).toDynamicValue(ctx => {

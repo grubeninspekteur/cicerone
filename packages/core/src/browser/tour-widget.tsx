@@ -11,6 +11,7 @@ export const TOUR_WIDGET_ID = 'cicerone.tour';
 
 export namespace TourCommandIds {
     export const DISCUSS = 'cicerone.tour.discuss';
+    export const CONTINUE = 'cicerone.tour.continue';
 }
 
 @injectable()
@@ -71,6 +72,7 @@ export class TourWidget extends ReactWidget {
             </div>;
         }
         const current = this.tours.currentStop;
+        const gate = this.tours.gate;
         const pending = Tour.pending(tour).length;
         const changes = Tour.changes(tour).length;
         const applied = Tour.changes(tour).filter(stop => stop.state === 'accepted').length;
@@ -98,6 +100,27 @@ export class TourWidget extends ReactWidget {
                         title={`Stop ${stop.n}: ${stop.why}`} onClick={() => this.presenter.present(stop)} />)}
                 </div>
             </header>
+            {gate && gate.sessionId === tour.sessionId && <div className='cicerone-gate' role='status'>
+                <span className={codicon('debug-pause')} />
+                <div>
+                    <b>The agent is waiting for you.</b> It wants to run <code>{gate.reason}</code>, which needs its changes in the files.
+                    Decide the {pending === 1 ? 'pending stop' : `${pending} pending stops`} and it carries on.
+                    <div className='cicerone-gate-actions'>
+                        <button className='theia-button secondary' onClick={() => this.tours.skipGate()}
+                            title='Run the command on the files as they are, without the pending changes'>Run without them</button>
+                    </div>
+                </div>
+            </div>}
+            {!gate && !tour.running && pending === 0 && this.tours.hasUnreportedReview(tour.sessionId) && <div className='cicerone-gate done' role='status'>
+                <span className={codicon('check-all')} />
+                <div>
+                    All stops decided. The agent hears about it with your next message.
+                    <div className='cicerone-gate-actions'>
+                        <button className='theia-button' onClick={() => this.commands.executeCommand(TourCommandIds.CONTINUE, tour.id)}
+                            title='Tell the agent what you accepted and rejected, and let it go on from there'>Let the agent continue</button>
+                    </div>
+                </div>
+            </div>}
             {tour.summary && <Markdown block className='cicerone-summary' text={tour.summary} />}
             <ol className='cicerone-stops'>
                 {tour.stops.map(stop => <StopRow key={stop.id} stop={stop} current={stop === current}

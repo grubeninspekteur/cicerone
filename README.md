@@ -25,6 +25,12 @@ reject with <kbd>Alt</kbd>+<kbd>Backspace</kbd>, or ask about a stop with *Discu
 editor's own undo stack; an accepted stop can be undone. A stop whose text has changed underneath it goes *stale* instead
 of being applied blindly. Tours survive a reload.
 
+**The checkpoint.** Models do not wait: they propose a fix and run the tests in the same breath. A command only sees
+what is in the files, so when the agent calls `run` while proposals of the conversation are still held, the command is
+held too. The tour says what the agent is waiting to do, you decide the stops (or choose *Run without them*), and then
+the command runs and the model is told what you accepted and rejected. If a turn ended with proposals on the table,
+*Let the agent continue* hands your decisions back in one click; otherwise they travel with your next message.
+
 Stops are a side effect of the agent working (its `edit`, `show` and `run` calls), never a report written afterwards, so the
 tour cannot drift from what actually happened.
 
@@ -119,17 +125,15 @@ list), and nothing here says anything about how well either agent works. To repe
 ## Providers
 
 - **LiteLLM gateway**: F1 → *Cicerone: Connect a LiteLLM Gateway…* asks for URL and key, tries them, and saves them only
-  if the gateway answers. The same values are in Settings under *AI Features › Lite Llm*
+  if the gateway answers. The same values are in the AI Configuration view under *Providers & Models › LiteLLM Gateway*
   (`ai-features.liteLlm.baseUrl`, `ai-features.liteLlm.apiKey`), or `LITELLM_BASE_URL` / `LITELLM_API_KEY` in the environment (used only after you confirm). Every chat model
   the gateway serves is discovered through `/v1/models` and `/model/info` and offered to the agent; embedding and other
   non-chat models are left out. Any OpenAI-compatible endpoint works; LiteLLM additionally tells Cicerone which models are chat models.
   The models are registered through Theia's OpenAI provider with the gateway as endpoint, so streaming, tool calling and
   retries are Theia's implementation, not a second one.
-- **Directly**: Theia's Anthropic, OpenAI, Google and Ollama providers are part of the build, as is MCP. Their settings
-  are in Settings under *AI Features*. For Ollama, list the models you have pulled:
-  `"ai-features.ollama.ollamaModels": ["llama3.3"]` (the host defaults to `http://localhost:11434`).
-  Theia itself hides these settings and points to an "AI Configuration view" that belongs to `@theia/ai-ide`; since
-  Cicerone leaves that package out, it keeps the settings where they were.
+- **Directly**: Theia's Anthropic, OpenAI, Google and Ollama providers are part of the build, as is MCP. They are set up
+  in the AI Configuration view (F1 → *Open AI Configuration*, or the chat's menu) under *Providers & Models*. For Ollama,
+  list the models you have pulled under *Ollama Models*; the host defaults to `http://localhost:11434`.
 - `cicerone.model` pins the agent to a model, e.g. `litellm/claude-sonnet`. Unset, the agent uses the model chosen for it in
   Theia's AI configuration, otherwise the first model the gateway offers.
 
@@ -158,7 +162,7 @@ the tools run, the files change, `npm test` passes or fails on its own merits.
 
 | sample | set up for | then |
 |---|---|---|
-| `samples/code` | nothing needed | ask as above; after accepting, ask *Run the tests again.* |
+| `samples/code` | nothing needed | ask as above; after accepting, ask *Run the tests again.* To see the checkpoint: *Fix the slug tests in one go.* |
 | `samples/contract` | Contracts and legal drafting | context menu in `services-agreement.md`: *Check Defined Terms*, *Check Cross-References* |
 | `samples/manuscript` | Fiction manuscript | select the second paragraph of chapter 1, context menu: *Tighten This Passage*; or ask *Keep a timeline of the story for me.* |
 
@@ -176,8 +180,10 @@ samples/                 a small library, a contract, three chapters of a novel
 ```
 
 What comes from Theia AI and is used as it is: the chat view and session model, the tool-calling loop and tool
-confirmation, the providers, skill discovery, MCP, the AI configuration and history views. Theia's own IDE agents
-(`@theia/ai-ide`) are deliberately not part of the build.
+confirmation, the providers, skill discovery, MCP, the AI Configuration view and the history view. The AI Configuration
+view comes with `@theia/ai-ide`, which also brings the Theia IDE's own chat agents (Coder, Architect, Orchestrator and
+others). Those ship switched off: Cicerone is the only agent in the chat until you enable another under *Agents*, which
+also makes it easy to compare them on the same task.
 
 What Cicerone adds: the tour and its proposal model (Theia's change sets are per file; a tour is per change, ordered,
 and carries reasons and non-change stops), the ledger and follow mode, the six-tool agent, gateway model discovery, and
@@ -192,12 +198,15 @@ connecting a gateway with a wrong and then a right URL, first chat). The model s
 a real LiteLLM 1.109 proxy with a master key, so discovery, authentication, streaming and tool calls crossed the real
 gateway.
 
-Not tested: **a real model has not driven this yet.** The system prompt, the tool descriptions and the profile skills are
-written with care but unproven; expect to tune them. Also untested: the Anthropic, OpenAI, Google and Ollama providers
+Barely tested: **real models.** One session with Gemma through Ollama so far; it showed that a model runs the tests
+before the review, which is what the checkpoint now handles. The system prompt, the tool descriptions and the profile
+skills are otherwise unproven; expect to tune them. Also untested: the Anthropic, OpenAI, Google and Ollama providers
 in this build, MCP tools in the ledger, Windows and macOS, large repositories.
 
 Known gaps:
 
+- A layout problem seen on Edge on Windows (content shifted to the right, served from WSL) that does not reproduce in
+  Chrome on Linux at the same display scale. Cause unknown so far.
 - The ledger is rebuilt per window session; after a reload it starts empty (tours and chats are restored).
 - Tours are kept in the browser's local storage for the workspace, not in the workspace itself.
 - One workspace root. No tool to delete or rename files (the agent can ask to `run` a command).
