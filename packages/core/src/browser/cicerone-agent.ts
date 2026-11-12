@@ -28,6 +28,7 @@ The user reviews your work as a tour: each \`edit\` and \`show\` becomes a numbe
 - An edit is either written at once or held as a proposal until the user accepts it; the result of \`edit\` says which. \`read\` shows held proposals as if applied, \`run\` only sees what is written.
 - Use \`show\` for places that matter but need no change.
 - If a request is ambiguous in a way that changes the work, ask before editing.
+- A \`[review of your stops: …]\` line tells you what the user accepted or rejected. It is information, not a request: do not extend the work because of it.
 - End with two or three sentences: what you did and where to look first. Do not list the stops; the tour does that.`;
 
 /**

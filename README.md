@@ -29,7 +29,8 @@ of being applied blindly. Tours survive a reload.
 what is in the files, so when the agent calls `run` while proposals of the conversation are still held, the command is
 held too. The tour says what the agent is waiting to do, you decide the stops (or choose *Run without them*), and then
 the command runs and the model is told what you accepted and rejected. If a turn ended with proposals on the table,
-*Let the agent continue* hands your decisions back in one click; otherwise they travel with your next message.
+*Let the agent wrap up* hands your decisions back in one click, with the instruction to finish only what the request
+still needs; otherwise they travel with your next message.
 
 Stops are a side effect of the agent working (its `edit`, `show` and `run` calls), never a report written afterwards, so the
 tour cannot drift from what actually happened.
@@ -103,7 +104,7 @@ One agent, no modes, six tools:
 
 Other things done for the token bill:
 
-- The system prompt says only what a model would not do unprompted (about 260 tokens).
+- The system prompt says only what a model would not do unprompted (about 300 tokens).
 - The prompt and tool definitions never change within a session, and the note about your cursor and selection is stored
   with each request rather than recomputed, so earlier messages stay byte-identical and provider prompt caching keeps hitting.
 - Skills cost one line each until loaded.
@@ -115,7 +116,7 @@ gateway and counted as characters / 4:
 
 | agent | system prompt | tools | fixed overhead |
 |---|---|---|---|
-| Cicerone | 1,049 chars | 6 tools, 3,118 chars | about 1,040 tokens |
+| Cicerone | 1,204 chars | 6 tools, 3,222 chars | about 1,110 tokens |
 | Theia IDE's Coder, Agent Mode (`@theia/ai-ide` 1.77) | 10,621 chars | 14 tools, 19,946 chars | about 7,640 tokens |
 
 This compares fixed cost only. Coder does things Cicerone does not (diagnostics, tasks, launch configurations, a to-do
@@ -205,8 +206,6 @@ in this build, MCP tools in the ledger, Windows and macOS, large repositories.
 
 Known gaps:
 
-- A layout problem seen on Edge on Windows (content shifted to the right, served from WSL) that does not reproduce in
-  Chrome on Linux at the same display scale. Cause unknown so far.
 - The ledger is rebuilt per window session; after a reload it starts empty (tours and chats are restored).
 - Tours are kept in the browser's local storage for the workspace, not in the workspace itself.
 - One workspace root. No tool to delete or rename files (the agent can ask to `run` a command).

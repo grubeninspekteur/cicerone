@@ -58,7 +58,7 @@ export namespace CiceroneCommands {
     export const REJECT: Command = { id: 'cicerone.tour.reject', label: 'Tour: Reject Current Stop', category };
     export const ACCEPT_ALL: Command = { id: 'cicerone.tour.acceptAll', label: 'Tour: Accept All Pending Stops', category };
     export const DISCUSS: Command = { id: TourCommandIds.DISCUSS, label: 'Tour: Discuss Current Stop with the Agent…', category };
-    export const CONTINUE: Command = { id: TourCommandIds.CONTINUE, label: 'Tour: Tell the Agent What You Decided and Let It Continue', category };
+    export const CONTINUE: Command = { id: TourCommandIds.CONTINUE, label: 'Tour: Tell the Agent What You Decided and Let It Wrap Up', category };
     export const TOGGLE_FOLLOW: Command = { id: 'cicerone.follow.toggle', label: 'Toggle Following the Agent in the Editor', category };
     export const TOGGLE_REVIEW: Command = { id: 'cicerone.review.toggle', label: 'Toggle Reviewing Changes Before or After They Are Written', category };
 }
@@ -238,7 +238,7 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
 
     /**
      * For a turn that ended with proposals on the table: once they are decided, one click hands the
-     * decisions back to the agent so it can go on (typically: verify what was accepted).
+     * decisions back to the agent so it can finish that request (typically: verify what was accepted) and nothing more.
      */
     protected async continueAfterReview(tourId?: string): Promise<void> {
         const tour = this.tours.getTour(tourId) ?? this.tours.currentTour;
@@ -249,7 +249,12 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
         }
         this.chatService.setActiveSession(session.id, { focus: false });
         // What was accepted and rejected travels with the message; the agent adds it to every request.
-        await this.chatService.sendRequest(session.id, { text: 'I have reviewed your stops. Continue from there.' });
+        // The wording fences the turn in: an open "continue" reads as an invitation to find more to do,
+        // and a model asked to tighten one paragraph went on to the next ones.
+        await this.chatService.sendRequest(session.id, {
+            text: 'I have reviewed your stops. Finish only what my last request still needs, such as checking the accepted changes. ' +
+                'Do not start anything new; if nothing is left to do, say so in one sentence.'
+        });
     }
 
     /** Sends the human's remark about a stop back to the agent, in the conversation the stop came from. */

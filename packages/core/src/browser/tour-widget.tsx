@@ -116,8 +116,8 @@ export class TourWidget extends ReactWidget {
                 <div>
                     All stops decided. The agent hears about it with your next message.
                     <div className='cicerone-gate-actions'>
-                        <button className='theia-button' onClick={() => this.commands.executeCommand(TourCommandIds.CONTINUE, tour.id)}
-                            title='Tell the agent what you accepted and rejected, and let it go on from there'>Let the agent continue</button>
+                        <button className='theia-button secondary' onClick={() => this.commands.executeCommand(TourCommandIds.CONTINUE, tour.id)}
+                            title='Tell the agent what you accepted and rejected, so it can finish what your request still needs (for example, run the tests). It is told not to start anything new.'>Let the agent wrap up</button>
                     </div>
                 </div>
             </div>}
