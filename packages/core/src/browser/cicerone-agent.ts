@@ -143,7 +143,7 @@ export class CiceroneAgent extends AbstractStreamParsingChatAgent {
             const ready = (await this.languageModelRegistry.getLanguageModels()).filter(model => model.status.status === 'ready');
             const fallback = ready.find(model => model.id.startsWith('litellm/')) ?? ready[0];
             if (!fallback) {
-                throw new Error('No language model is available. Set a LiteLLM gateway URL or a provider key in the AI settings.');
+                throw new Error('No language model is connected. Run "Cicerone: Connect a LiteLLM Gateway…" from the command palette (F1), or add a provider key in Settings under AI Features.');
             }
             return fallback;
         }

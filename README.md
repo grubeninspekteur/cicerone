@@ -118,13 +118,18 @@ list), and nothing here says anything about how well either agent works. To repe
 
 ## Providers
 
-- **LiteLLM gateway**: set `ai-features.liteLlm.baseUrl` (and `ai-features.liteLlm.apiKey` if the gateway wants one) in the
-  settings, or `LITELLM_BASE_URL` / `LITELLM_API_KEY` in the environment (used only after you confirm). Every chat model
+- **LiteLLM gateway**: F1 → *Cicerone: Connect a LiteLLM Gateway…* asks for URL and key, tries them, and saves them only
+  if the gateway answers. The same values are in Settings under *AI Features › Lite Llm*
+  (`ai-features.liteLlm.baseUrl`, `ai-features.liteLlm.apiKey`), or `LITELLM_BASE_URL` / `LITELLM_API_KEY` in the environment (used only after you confirm). Every chat model
   the gateway serves is discovered through `/v1/models` and `/model/info` and offered to the agent; embedding and other
   non-chat models are left out. Any OpenAI-compatible endpoint works; LiteLLM additionally tells Cicerone which models are chat models.
   The models are registered through Theia's OpenAI provider with the gateway as endpoint, so streaming, tool calling and
   retries are Theia's implementation, not a second one.
-- **Directly**: Theia's Anthropic, OpenAI, Google and Ollama providers are part of the build, as is MCP.
+- **Directly**: Theia's Anthropic, OpenAI, Google and Ollama providers are part of the build, as is MCP. Their settings
+  are in Settings under *AI Features*. For Ollama, list the models you have pulled:
+  `"ai-features.ollama.ollamaModels": ["llama3.3"]` (the host defaults to `http://localhost:11434`).
+  Theia itself hides these settings and points to an "AI Configuration view" that belongs to `@theia/ai-ide`; since
+  Cicerone leaves that package out, it keeps the settings where they were.
 - `cicerone.model` pins the agent to a model, e.g. `litellm/claude-sonnet`. Unset, the agent uses the model chosen for it in
   Theia's AI configuration, otherwise the first model the gateway offers.
 
@@ -146,7 +151,8 @@ cp -r samples/code /tmp/postcard              # the samples get edited, so work 
 npm start -- /tmp/postcard                    # http://127.0.0.1:3000
 ```
 
-In the settings set **LiteLLM gateway URL** to `http://127.0.0.1:4000`, then ask in the chat:
+The status bar says *No model connected*. Click it (or F1 → **Cicerone: Connect a LiteLLM Gateway…**), enter
+`http://127.0.0.1:4000` and leave the key empty. Then ask in the chat:
 *The slug tests are failing. Find out why and fix it.* The mock plays a scripted model, but everything after it is real:
 the tools run, the files change, `npm test` passes or fails on its own merits.
 
@@ -156,7 +162,7 @@ the tools run, the files change, `npm test` passes or fails on its own merits.
 | `samples/contract` | Contracts and legal drafting | context menu in `services-agreement.md`: *Check Defined Terms*, *Check Cross-References* |
 | `samples/manuscript` | Fiction manuscript | select the second paragraph of chapter 1, context menu: *Tighten This Passage*; or ask *Keep a timeline of the story for me.* |
 
-With a real gateway, point the same setting at it and open your own folder.
+With a real gateway, run the same command with its URL and key and open your own folder.
 
 ## How it is built
 
@@ -181,7 +187,8 @@ the workbench description with its views, actions and profiles.
 
 Tested, by driving the built application in headless Chrome: the three sample workflows end to end, including approval,
 per-stop accept, reject and undo, a second turn, profile setup, all five view kinds, context actions, the agent adding a
-view, action and skill to a workbench, and reload. The model side of those runs was the scripted mock, reached through
+view, action and skill to a workbench, reload, and the first-run path from an empty configuration (settings view,
+connecting a gateway with a wrong and then a right URL, first chat). The model side of those runs was the scripted mock, reached through
 a real LiteLLM 1.109 proxy with a master key, so discovery, authentication, streaming and tool calls crossed the real
 gateway.
 

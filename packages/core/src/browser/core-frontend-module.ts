@@ -8,6 +8,7 @@ import { Agent, ToolProvider } from '@theia/ai-core';
 import { ChatAgent, DefaultChatAgentId } from '@theia/ai-chat';
 import { WORKSPACE_TOOLS_PATH, WorkspaceTools } from '../common/workspace-tools.js';
 import { ActivityService } from './activity-service.js';
+import { keepAiSettingsInSettingsView } from './ai-settings-visibility.js';
 import { ActivityWidget } from './activity-widget.js';
 import { BuiltinSkillContribution } from './builtin-skills.js';
 import { EditValidator } from './edit-validator.js';
@@ -18,6 +19,8 @@ import { EditTool, FindTool, ReadTool, RunTool, ShowTool, SkillLibrary, SkillToo
 import { TourService } from './tour-service.js';
 import { TourWidget } from './tour-widget.js';
 import { WorkspaceDocuments } from './workspace-documents.js';
+
+keepAiSettingsInSettingsView();
 
 export default new ContainerModule((bind, _unbind, isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: CiceronePreferenceSchema });

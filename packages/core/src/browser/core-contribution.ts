@@ -4,6 +4,7 @@ import {
     AbstractViewContribution, ApplicationShell, FrontendApplication, FrontendApplicationContribution, KeybindingContribution, KeybindingRegistry,
     StatusBar, StatusBarAlignment, WidgetManager
 } from '@theia/core/lib/browser';
+import { LanguageModelRegistry } from '@theia/ai-core';
 import { ChatService } from '@theia/ai-chat';
 import { ActivityService } from './activity-service.js';
 import { ACTIVITY_WIDGET_ID, ActivityWidget } from './activity-widget.js';
@@ -87,6 +88,9 @@ export class ActivityViewContribution extends AbstractViewContribution<ActivityW
 }
 
 const STATUS_ID = 'cicerone.status';
+const NO_MODEL_STATUS_ID = 'cicerone.status.noModel';
+/** Contributed by @cicerone/litellm; named here so the core does not depend on that package. */
+export const CONNECT_GATEWAY_COMMAND_ID = 'cicerone.gateway.connect';
 
 /** Commands, keys, the status bar entry, and the layout a fresh workspace starts with. */
 @injectable()
@@ -104,9 +108,11 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
     @inject(QuickInputService) protected readonly quickInput: QuickInputService;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(LanguageModelRegistry) protected readonly languageModels: LanguageModelRegistry;
 
     @postConstruct()
     protected init(): void {
+        this.languageModels.onChange(() => this.updateModelStatus());
         this.tours.onDidChange(() => this.updateStatus());
         this.activity.onDidChange(() => this.updateStatus());
         this.tours.onDidAddStop(stop => {
@@ -120,6 +126,29 @@ export class CiceroneContribution implements FrontendApplicationContribution, Co
     onStart(): void {
         this.activity.connect(this.chatService);
         this.updateStatus();
+        // Providers register their models shortly after start; do not cry wolf before they had the chance.
+        setTimeout(() => this.updateModelStatus(), 4000);
+    }
+
+    /**
+     * Without a model nothing works, and the first place that said so used to be an error in the chat.
+     * A status bar entry says it up front and leads to the way out.
+     */
+    protected async updateModelStatus(): Promise<void> {
+        const models = await this.languageModels.getLanguageModels();
+        if (models.some(model => model.status.status === 'ready')) {
+            this.statusBar.removeElement(NO_MODEL_STATUS_ID);
+            return;
+        }
+        this.statusBar.setElement(NO_MODEL_STATUS_ID, {
+            text: '$(plug) No model connected',
+            tooltip: 'The agent has no language model to talk to. Click to connect a LiteLLM gateway, or add a provider key in Settings under AI Features.',
+            alignment: StatusBarAlignment.LEFT,
+            priority: 1001,
+            backgroundColor: 'var(--theia-statusBarItem-warningBackground)',
+            color: 'var(--theia-statusBarItem-warningForeground)',
+            command: CONNECT_GATEWAY_COMMAND_ID
+        });
     }
 
     /** Only runs when there is no saved layout: what was asked | the work | the conversation, activity underneath. */
