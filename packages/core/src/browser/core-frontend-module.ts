@@ -1,6 +1,6 @@
 import '../../src/browser/style/index.css';
 import { ContainerModule } from '@theia/core/shared/inversify';
-import { bindContributionProvider, CommandContribution, PreferenceContribution, ResourceResolver } from '@theia/core';
+import { bindContributionProvider, CommandContribution, MenuContribution, PreferenceContribution, ResourceResolver } from '@theia/core';
 import {
     bindViewContribution, FrontendApplicationContribution, KeybindingContribution, RemoteConnectionProvider, ServiceConnectionProvider, WidgetFactory
 } from '@theia/core/lib/browser';
@@ -15,9 +15,11 @@ import { ActivityWidget } from './activity-widget.js';
 import { BuiltinSkillContribution } from './builtin-skills.js';
 import { EditValidator } from './edit-validator.js';
 import { CICERONE_AGENT_ID, CiceroneAgent, CiceroneToolProvider } from './cicerone-agent.js';
-import { ActivityViewContribution, CiceronePreferenceSchema, CiceroneContribution, TourViewContribution } from './core-contribution.js';
+import { ActivityViewContribution, CiceronePreferenceSchema, CiceroneContribution, FleetViewContribution, TourViewContribution } from './core-contribution.js';
 import { ProposalResourceResolver, StopPresenter } from './stop-presenter.js';
-import { EditTool, FindTool, ReadTool, RunTool, ShowTool, SkillLibrary, SkillTool } from './tools.js';
+import { FleetService } from './fleet-service.js';
+import { FleetWidget } from './fleet-widget.js';
+import { DelegateTool, EditTool, FindTool, ReadTool, RunTool, ShowTool, SkillLibrary, SkillTool } from './tools.js';
 import { TourService } from './tour-service.js';
 import { TourWidget } from './tour-widget.js';
 import { WorkspaceDocuments } from './workspace-documents.js';
@@ -41,6 +43,7 @@ export default new ContainerModule((bind, unbind, isBound, rebind) => {
     bind(WorkspaceDocuments).toSelf().inSingletonScope();
     bind(TourService).toSelf().inSingletonScope();
     bind(ActivityService).toSelf().inSingletonScope();
+    bind(FleetService).toSelf().inSingletonScope();
     bind(StopPresenter).toSelf().inSingletonScope();
     bind(ProposalResourceResolver).toSelf().inSingletonScope();
     bind(ResourceResolver).toService(ProposalResourceResolver);
@@ -50,7 +53,7 @@ export default new ContainerModule((bind, unbind, isBound, rebind) => {
     bindContributionProvider(bind, BuiltinSkillContribution);
     bindContributionProvider(bind, EditValidator);
     bind(SkillLibrary).toSelf().inSingletonScope();
-    for (const tool of [ReadTool, FindTool, EditTool, ShowTool, RunTool, SkillTool]) {
+    for (const tool of [ReadTool, FindTool, EditTool, ShowTool, RunTool, SkillTool, DelegateTool]) {
         bind(tool).toSelf().inSingletonScope();
         bind(CiceroneToolProvider).toService(tool);
         bind(ToolProvider).toService(tool);
@@ -71,9 +74,13 @@ export default new ContainerModule((bind, unbind, isBound, rebind) => {
     bind(ActivityWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: ActivityWidget.ID, createWidget: () => ctx.container.get(ActivityWidget) })).inSingletonScope();
     bindViewContribution(bind, ActivityViewContribution);
+    bind(FleetWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: FleetWidget.ID, createWidget: () => ctx.container.get(FleetWidget) })).inSingletonScope();
+    bindViewContribution(bind, FleetViewContribution);
 
     bind(CiceroneContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(CiceroneContribution);
     bind(CommandContribution).toService(CiceroneContribution);
     bind(KeybindingContribution).toService(CiceroneContribution);
+    bind(MenuContribution).toService(CiceroneContribution);
 });

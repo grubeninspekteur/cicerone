@@ -10,3 +10,5 @@ export { ACTIVITY_WIDGET_ID } from './activity-widget.js';
 export { CHAT_VIEW_ID } from './core-contribution.js';
 export * from './edit-validator.js';
 export * from './markdown.js';
+export * from './fleet-service.js';
+export { FLEET_WIDGET_ID, FleetCommandIds } from './fleet-widget.js';

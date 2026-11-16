@@ -84,6 +84,7 @@ export const BUILTIN_VIEWS: Record<string, { widgetId: string, description: stri
     tour: { widgetId: 'cicerone.tour', description: 'the agent\'s stops' },
     chat: { widgetId: 'chat-view-widget', description: 'conversation with the agent' },
     activity: { widgetId: 'cicerone.activity', description: 'what the agent is doing' },
+    fleet: { widgetId: 'cicerone.fleet', description: 'mission control: all agents and what waits for the user' },
     outline: { widgetId: 'outline-view', description: 'symbols of the open file' },
     problems: { widgetId: 'problems', description: 'errors and warnings' },
     terminal: { widgetId: 'terminal', description: 'shell' },

@@ -29,7 +29,12 @@ export interface ActivityTurn {
     readonly sessionId: string;
     readonly prompt: string;
     readonly startedAt: number;
+    endedAt?: number;
     status: 'running' | 'waiting' | 'done' | 'error' | 'canceled';
+    /** Why the turn failed, in the provider's words. */
+    error?: string;
+    /** The agent's closing words. */
+    summary?: string;
     model?: string;
     entries: ActivityEntry[];
     usage?: { input: number, output: number, cacheRead: number };
@@ -62,6 +67,9 @@ export class ActivityService {
     protected readonly watchedSessions = new Set<string>();
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
+    protected readonly onDidFinishTurnEmitter = new Emitter<ActivityTurn>();
+    /** Fires once per turn, when the agent has stopped working on it for whatever reason. */
+    readonly onDidFinishTurn: Event<ActivityTurn> = this.onDidFinishTurnEmitter.event;
 
     /**
      * Starts observing the chat sessions. Called once at startup rather than injected: the chat
@@ -90,12 +98,43 @@ export class ActivityService {
         return this.runningTurn?.entries.findLast(entry => entry.status === 'running' || entry.status === 'awaiting-approval');
     }
 
+    turnsOf(sessionId: string): ActivityTurn[] {
+        return this.turns.filter(turn => turn.sessionId === sessionId);
+    }
+
+    runningTurnOf(sessionId: string): ActivityTurn | undefined {
+        return this.turns.findLast(turn => turn.sessionId === sessionId && (turn.status === 'running' || turn.status === 'waiting'));
+    }
+
+    /**
+     * Records something that happened in a turn but was not a tool call, such as the human steering
+     * the agent while it works. The ledger is where one looks to see why an agent changed course.
+     */
+    note(sessionId: string, tool: string, target: string, outcome?: string): void {
+        const turn = this.runningTurnOf(sessionId);
+        if (turn) {
+            const now = Date.now();
+            turn.entries.push({ id: `note-${now}-${turn.entries.length}`, tool, target, outcome, status: 'done', startedAt: now, endedAt: now });
+            this.onDidChangeEmitter.fire();
+        }
+    }
+
     totals(): { input: number, output: number, cacheRead: number } {
         return this.turns.reduce((sum, turn) => ({
             input: sum.input + (turn.usage?.input ?? 0),
             output: sum.output + (turn.usage?.output ?? 0),
             cacheRead: sum.cacheRead + (turn.usage?.cacheRead ?? 0)
         }), { input: 0, output: 0, cacheRead: 0 });
+    }
+
+    /** Updates the outcome of the notes of one kind in the running turn, e.g. once steering has reached the agent. */
+    resolveNotes(sessionId: string, tool: string, outcome: string): void {
+        for (const entry of this.runningTurnOf(sessionId)?.entries ?? []) {
+            if (entry.tool === tool && entry.id.startsWith('note-')) {
+                entry.outcome = outcome;
+            }
+        }
+        this.onDidChangeEmitter.fire();
     }
 
     annotate(toolCallId: string | undefined, annotation: Annotation): void {
@@ -147,7 +186,11 @@ export class ActivityService {
             this.sync(turn, request);
             if (response.isComplete || response.isCanceled || response.isError) {
                 listener.dispose();
-                this.tours.finish(request.id, response.isError ? undefined : lastWords(request));
+                turn.endedAt = Date.now();
+                turn.error = response.isError ? response.errorObject?.message ?? 'The request failed.' : undefined;
+                turn.summary = response.isError ? undefined : lastWords(request);
+                this.tours.finish(request.id, turn.summary);
+                this.onDidFinishTurnEmitter.fire(turn);
             }
         });
     }
@@ -217,6 +260,9 @@ function lastWords(request: ChatRequestModel): string | undefined {
 }
 
 function isDenied(result: unknown): boolean {
+    if (typeof result === 'object' && result !== null && (result as { denied?: unknown }).denied === true) {
+        return true;
+    }
     return typeof result === 'string' && /denied|not allowed by the user/i.test(result) && result.length < 200;
 }
 

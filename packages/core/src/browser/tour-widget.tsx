@@ -72,8 +72,9 @@ export class TourWidget extends ReactWidget {
             </div>;
         }
         const current = this.tours.currentStop;
-        const gate = this.tours.gate;
+        const gate = this.tours.gateFor(tour.sessionId);
         const pending = Tour.pending(tour).length;
+        const waiting = gate ? this.tours.pendingIn(gate.sessionId).length : 0;
         const changes = Tour.changes(tour).length;
         const applied = Tour.changes(tour).filter(stop => stop.state === 'accepted').length;
         const index = current ? tour.stops.indexOf(current) : -1;
@@ -100,13 +101,13 @@ export class TourWidget extends ReactWidget {
                         title={`Stop ${stop.n}: ${stop.why}`} onClick={() => this.presenter.present(stop)} />)}
                 </div>
             </header>
-            {gate && gate.sessionId === tour.sessionId && <div className='cicerone-gate' role='status'>
+            {gate && <div className='cicerone-gate' role='status'>
                 <span className={codicon('debug-pause')} />
                 <div>
                     <b>The agent is waiting for you.</b> It wants to run <code>{gate.reason}</code>, which needs its changes in the files.
-                    Decide the {pending === 1 ? 'pending stop' : `${pending} pending stops`} and it carries on.
+                    Decide the {waiting === 1 ? 'pending stop' : `${waiting} pending stops`}{waiting > pending ? ' (some are in its workers\' tours)' : ''} and it carries on.
                     <div className='cicerone-gate-actions'>
-                        <button className='theia-button secondary' onClick={() => this.tours.skipGate()}
+                        <button className='theia-button secondary' onClick={() => this.tours.skipGate(gate.sessionId)}
                             title='Run the command on the files as they are, without the pending changes'>Run without them</button>
                     </div>
                 </div>

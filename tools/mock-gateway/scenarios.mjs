@@ -38,7 +38,103 @@ Change only rows that are wrong or missing; do not reword rows that are still ri
 do not pick a side: add the question under "Not yet placed". One \`edit\` per row.
 `;
 
+/** What the human said to the agent while it worked, if anything: the harness appends it to a tool result. */
+function steering(messages) {
+    return messages
+        .filter(message => message.role === 'tool')
+        .map(message => typeof message.content === 'string' ? message.content : (message.content ?? []).map(part => part.text ?? '').join(''))
+        .map(text => /\[the user, while you work: ([^\]]+)\]/.exec(text)?.[1])
+        .filter(Boolean)
+        .at(-1);
+}
+
 export const scenarios = [
+    {
+        // samples/code: fan-out. Two parts that do not depend on each other go to two workers, which run at the same time,
+        // each with its own tour. Each worker's task is worded to pick one of the scenarios below.
+        match: /in parallel|split (this|it) up/i,
+        steps: [
+            {
+                say: 'These two do not depend on each other, so I am handing them to two workers. ',
+                call: [call('delegate', {
+                    tasks: [
+                        'The slug tests are failing. Find out why and fix it. Report the cause in one sentence.',
+                        'Document reading-time: in src/reading-time.js, extend the JSDoc of `readingTime` so it says how the estimate is computed. Change nothing else.'
+                    ]
+                })]
+            },
+            {
+                say: 'Both workers are done. One found two bugs in `slugify` and proposed fixes; the other documented `readingTime`. ' +
+                    'Their changes are held in their own tours: review the slug worker first, its stop 5 adds a test that fails on purpose.'
+            }
+        ]
+    },
+    {
+        // samples/code: a long job to watch and to steer. It reads file after file, slowly; when the human says something
+        // while it works, it drops the rest and answers to that.
+        match: /audit|survey/i,
+        steps: (prompt, messages) => {
+            const said = steering(messages);
+            if (said) {
+                return [{
+                    say: `Changing course as you asked ("${said}"). I have stopped the survey where it was: so far \`src/slug.js\` is the only file with a problem worth your time, ` +
+                        'and I have left everything else alone.'
+                }];
+            }
+            return [
+                { wait: 600, call: [call('find', { glob: '**/*.js' })] },
+                { wait: 1500, call: [call('read', { path: 'package.json' })] },
+                { wait: 1500, call: [call('read', { path: 'src/index.js' })] },
+                { wait: 1500, call: [call('read', { path: 'src/slug.js' })] },
+                { wait: 1500, call: [call('read', { path: 'src/reading-time.js' })] },
+                { wait: 1500, call: [call('read', { path: 'test/slug.test.js' })] },
+                { wait: 1500, call: [call('read', { path: 'test/reading-time.test.js' })] },
+                {
+                    wait: 800,
+                    call: [call('show', {
+                        path: 'src/reading-time.js',
+                        quote: 'const WORDS_PER_MINUTE = 230;',
+                        why: 'The one number the whole estimate hangs on. It is a constant, not an option, so every caller gets the same reading speed.'
+                    })]
+                },
+                { say: 'I read all six files. The library is small and consistent; the only thing I would raise is the hard-coded reading speed at stop 1. The failing slug tests are a separate matter.' }
+            ];
+        }
+    },
+    {
+        // samples/code: the same small job by a model that does not wait, so a second agent can sit at the review checkpoint
+        match: /(reading-time|jsdoc).*(check|verify)/is,
+        steps: [
+            { call: [call('read', { path: 'src/reading-time.js' })] },
+            {
+                call: [call('edit', {
+                    path: 'src/reading-time.js',
+                    old: 'const WORDS_PER_MINUTE = 230;',
+                    new: '/** Average silent reading speed for English prose, in words per minute. */\nconst WORDS_PER_MINUTE = 230;',
+                    why: 'Says where the number comes from, so the next reader does not take it for an arbitrary constant.'
+                })]
+            },
+            { call: [call('run', { command: 'node --test test/reading-time.test.js', why: 'Checks that the comment did not disturb the module.' })] },
+            { say: 'I documented the reading speed constant and ran the reading-time tests on what you accepted.' }
+        ]
+    },
+    {
+        // samples/code: a small, independent job; what the second worker of the fan-out does
+        match: /reading-time|jsdoc/i,
+        steps: [
+            { wait: 400, call: [call('read', { path: 'src/reading-time.js' })] },
+            {
+                wait: 400,
+                call: [call('edit', {
+                    path: 'src/reading-time.js',
+                    old: '/** Estimated reading time in whole minutes, never less than one. */',
+                    new: '/**\n * Estimated reading time in whole minutes, never less than one.\n * Words are counted by splitting on whitespace and divided by WORDS_PER_MINUTE (230), then rounded.\n */',
+                    why: 'Says how the number comes about, so nobody has to read the body to learn that it is a plain word count at a fixed speed.'
+                })]
+            },
+            { say: 'I extended the JSDoc of `readingTime` to say how the estimate is computed; nothing else changed.' }
+        ]
+    },
     {
         // samples/code: a model that does not wait. It proposes its fix and runs the tests in the same breath,
         // which is what real models do. The run must be held until the proposals are reviewed.
