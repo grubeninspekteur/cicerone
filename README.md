@@ -70,15 +70,47 @@ The ledger is derived from the chat model, so tools from MCP servers appear in i
 }
 ```
 
-Five view kinds cover a lot of ground: `outline` (headings across files), `matches` (a regular expression, grouped by file
+Five declarative view kinds cover a lot of ground: `outline` (headings across files), `matches` (a regular expression, grouped by file
 or by match), `files` (cards from front matter), `counts` (words or lines against a target), `document` (a rendered
-markdown file). An action sends the agent a request, usually naming a **skill**: a `SKILL.md` under `.agents/skills/`,
+markdown file). For everything else there is a sixth, `custom` (below). An action sends the agent a request, usually naming a **skill**: a `SKILL.md` under `.agents/skills/`,
 the [Agent Skills](https://agentskills.io) layout that Theia's skill service already scans.
 
 Because it is a file, the agent reshapes the editor with the same `edit` tool it uses for everything else, you review the
 reshaping as ordinary stops, and a colleague who opens the folder gets the same workbench. How to do it is itself a
 built-in skill (`workbench`) that costs one line of prompt until someone asks. Proposed workbench files and skills are
 validated while the agent writes them, and the problems go back to the model in the tool result.
+
+**Custom views: when no kind fits, the agent writes one.** A `custom` view is an HTML file under `.cicerone/views/`
+with its own script, so a question the five kinds cannot answer gets a view of its own without rebuilding the editor:
+which character is in which scene, which clause cites which, a dependency graph. Asked *Show me who appears in which
+scene*, the agent writes a grid of scenes and characters. A dot opens the scene, the grid redraws as you write, and it
+flags a character who turns up before the chapter their character file names.
+
+![A custom view the agent wrote: scenes by characters, one dot flagged](docs/images/custom-view-flag.png)
+
+```json
+{ "id": "on-stage", "title": "On Stage", "kind": "custom", "area": "bottom",
+  "file": ".cicerone/views/scenes.html", "files": "{chapters,characters}/*.md" }
+```
+
+The view is code that the agent wrote, so it is fenced in:
+
+- **It runs only once you allow it.** The view first shows what it is and what it may read, with *Run this view* and
+  *Read the code*. Consent is stored in the browser for that exact content, which the agent cannot write, and any
+  change to the file asks again.
+- **It has no network.** It runs in two nested sandboxed frames. The outer one has a policy that allows nothing to be
+  fetched, and that policy also governs where the inner frame may navigate. Fetch, images, sockets, child frames, meta
+  refresh and navigating itself away are all blocked; the probe used to check this got every one through when only one
+  frame was used. Neither frame can reach the editor's page, storage or cookies.
+- **It sees only what it declares.** Its one way out is `window.cicerone`: list files, read, search, open a file at a
+  line, run an action the workbench already declares, and be told when files change. Paths are checked on the editor's
+  side: inside the workspace, not hidden (`.env` and `.git` are refused), and inside the view's `files` glob.
+- **Its errors reach the agent.** An uncaught error, or a blocked navigation, appears above the view with *Ask the
+  agent to fix it*, which sends the error and its stack to the agent. While the agent writes a view, it is told when
+  the code reaches for the network, browser storage or `fetch`.
+
+Colours and fonts come from the editor theme as CSS variables (`--fg`, `--dim`, `--accent`, `--chart-1`…), and follow it
+when the theme changes. How to write a view is part of the `workbench` skill, so it costs nothing until it is needed.
 
 *Cicerone: Set Up This Workspace For…* writes a starting point: software, fiction manuscript, contracts, copy-editing,
 or "something else", which hands your one-sentence description to the agent.
@@ -203,7 +235,7 @@ the tools run, the files change, `npm test` passes or fails on its own merits.
 | `samples/code` | nothing needed | ask as above; after accepting, ask *Run the tests again.* To see the checkpoint: *Fix the slug tests in one go.* |
 | `samples/code`, several agents | nothing needed | in Mission Control: *Fix the slug tests and document reading-time, in parallel.* (the agent delegates to two workers), then *Audit this library* and type into its card while it reads |
 | `samples/contract` | Contracts and legal drafting | context menu in `services-agreement.md`: *Check Defined Terms*, *Check Cross-References* |
-| `samples/manuscript` | Fiction manuscript | select the second paragraph of chapter 1, context menu: *Tighten This Passage*; or ask *Keep a timeline of the story for me.* |
+| `samples/manuscript` | Fiction manuscript | select the second paragraph of chapter 1, context menu: *Tighten This Passage*; or ask *Keep a timeline of the story for me.* For a custom view: *Show me who appears in which scene.* |
 
 With a real gateway, run the same command with its URL and key and open your own folder.
 
@@ -213,7 +245,7 @@ With a real gateway, run the same command with its URL and key and open your own
 applications/browser     the Theia application (browser target)
 packages/litellm         gateway discovery: one URL in, registered models out
 packages/core            the agent, its seven tools, tour, ledger, follow mode, the fleet and Mission Control
-packages/shape           workbench.json: views, layout, actions, profiles, the workbench skill
+packages/shape           workbench.json: views (custom views in a sandbox among them), layout, actions, profiles, the workbench skill
 tools/mock-gateway       an OpenAI-compatible server that plays scripted conversations
 samples/                 a small library, a contract, three chapters of a novel
 ```
@@ -246,6 +278,12 @@ skills are otherwise unproven; expect to tune them. Also untested: the Anthropic
 in this build, MCP tools in the ledger, Windows and macOS, large repositories.
 
 Known gaps:
+
+- Custom views: tested in Chromium only. The sandbox relies on the outer frame's policy governing the inner frame's
+  navigation, as the CSP standard says; Firefox and Safari are not checked yet. Consent is per browser, not per
+  person, and is lost when site data is cleared. A view cannot keep state between reloads except in a workspace file,
+  and it has no way to write one: it can only run an action that asks the agent. Keyboard shortcuts do not work
+  while focus is inside a view.
 
 - The ledger is rebuilt per window session; after a reload it starts empty (tours and chats are restored). The board is built from the
   ledger, so it starts empty too.

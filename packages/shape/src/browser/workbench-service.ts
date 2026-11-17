@@ -3,6 +3,7 @@ import { Emitter, Event, URI } from '@theia/core';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { EditValidator } from '@cicerone/core/lib/browser';
+import { checkViewSource, CUSTOM_VIEW_DIRECTORY } from '../common/custom-view.js';
 import { EMPTY_WORKBENCH, parseWorkbench, SKILLS_DIRECTORY, splitFrontMatter, WORKBENCH_FILE, WorkbenchConfig } from '../common/workbench.js';
 
 /** Keeps the workbench description in step with the file it lives in. */
@@ -72,6 +73,9 @@ export class WorkbenchService implements EditValidator {
     validate(_uri: URI, path: string, proposed: string): string[] | undefined {
         if (path === WORKBENCH_FILE) {
             return parseWorkbench(proposed).problems;
+        }
+        if (path.startsWith(`${CUSTOM_VIEW_DIRECTORY}/`) || this._config.views.some(view => view.kind === 'custom' && view.file === path)) {
+            return checkViewSource(proposed);
         }
         const skill = new RegExp(`^${SKILLS_DIRECTORY.replace('.', '\\.')}/([^/]+)/SKILL\\.md$`).exec(path);
         if (skill) {

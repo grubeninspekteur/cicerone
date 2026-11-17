@@ -7,7 +7,11 @@
  * The edits quote the files under samples/ verbatim; if you change a sample, change its script.
  */
 
+import { readFileSync } from 'node:fs';
+
 const call = (name, args) => ({ name, args });
+/** A custom view, kept as a real file so it can be opened and edited like any other HTML. */
+const SCENES_VIEW = readFileSync(new URL('./files/scenes.html', import.meta.url), 'utf8');
 
 const TIMELINE = `# Timeline
 
@@ -49,6 +53,36 @@ function steering(messages) {
 }
 
 export const scenarios = [
+    {
+        // samples/manuscript after "Fiction manuscript" setup: a question no declarative view kind answers, so the agent writes a custom view.
+        match: /who (appears|is) (in|on)|on stage|which scenes?/i,
+        steps: [
+            { call: [call('skill', { name: 'workbench' })] },
+            { call: [call('read', { path: '.cicerone/workbench.json' }), call('find', { glob: 'characters/*.md' }), call('find', { text: '^## ', regex: true, glob: 'chapters/*.md' })] },
+            { call: [call('read', { path: 'characters/ines-calder.md', lines: 8 })] },
+            {
+                call: [
+                    call('edit', {
+                        path: '.cicerone/views/scenes.html', old: '', new: SCENES_VIEW,
+                        why: 'The view itself: one column per scene (the `##` headings), one row per character file, a dot wherever a character is named. ' +
+                            'It also compares each character\'s first appearance with the `first-seen` field of their file and marks a mismatch.'
+                    }),
+                    call('edit', {
+                        path: '.cicerone/workbench.json',
+                        old: '      "target": 80000\n    }\n  ],',
+                        new: '      "target": 80000\n    },\n    {\n      "id": "on-stage",\n      "title": "On Stage",\n      "kind": "custom",\n      "icon": "organization",\n' +
+                            '      "area": "bottom",\n      "file": ".cicerone/views/scenes.html",\n      "files": "{chapters,characters}/*.md"\n    }\n  ],',
+                        why: 'Adds the view below the editor, where a grid has room. It may read only the chapters and the character files.'
+                    })
+                ]
+            },
+            {
+                say: 'None of the ready-made view kinds can cross scenes with characters, so I wrote a small custom view. Accept both stops, then allow it to run: ' +
+                    'a grid of scenes and characters appears below the editor, and every dot opens the scene where that character is named. ' +
+                    'It updates as you write, and it flags anyone who turns up earlier than their character file says.'
+            }
+        ]
+    },
     {
         // samples/code: fan-out. Two parts that do not depend on each other go to two workers, which run at the same time,
         // each with its own tour. Each worker's task is worded to pick one of the scenarios below.

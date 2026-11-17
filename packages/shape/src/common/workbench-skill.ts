@@ -35,9 +35,21 @@ and optional \`area\` (left, right, bottom; default left). Entries in a view ope
 | files | one card per file: title plus chosen front-matter fields | \`files\`, \`fields\` |
 | counts | words (or lines) per file, total, progress to a target | \`files\`, \`unit\`: words or lines, \`target\` |
 | document | one markdown file rendered for reading (a style sheet, a brief, a list you maintain) | \`file\` |
+| custom | anything the kinds above cannot show (a grid, a chart, a graph), drawn by code you write | \`file\`: an HTML file under \`.cicerone/views/\`; \`files\`: glob of what it may read |
 
 A view may name an \`action\` id; it appears as a button in the view (typical for a document the agent regenerates).
 Patterns are matched line by line and must work in both JavaScript and Rust regex syntax; escape backslashes for JSON.
+
+### custom views
+Prefer the kinds above; write a custom view only for a question they cannot answer. It is one self-contained HTML file (inline
+\`<style>\` and \`<script>\`, no \`<html>\`/\`<head>\` needed) that runs in a sandbox with no network: no CDN libraries, no fetch,
+no storage. Draw with HTML, CSS grid or inline SVG. The user must allow it to run, and again after every change, so keep it short and readable.
+Set \`files\` to exactly what it needs; reads outside it, and of hidden files, fail. The page has \`window.cicerone\` (all async):
+- \`files(glob?)\` → workspace-relative paths · \`read(path)\` → text · \`find(text, { glob, regex })\` → \`[{ path, line, text }]\`
+- \`open(path, line?)\` opens a file in the editor; make what the view shows clickable that way · \`action(id)\` runs an action declared below
+- \`onChange(fn)\`: called when workspace files change; re-read and redraw there · \`frontMatter(text)\` → \`{ fields, body }\`
+- CSS variables follow the editor theme: \`--fg --bg --dim --border --hover --focus --accent --ok --bad --warn --chart-1\`…\`--chart-6 --font --font-size --mono\`.
+Errors the page throws are shown to the user, who can send them back to you.
 
 ### actions
 An action puts a command in the context menu and the command palette. Running it sends you a request.

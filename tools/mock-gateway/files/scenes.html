@@ -1,0 +1,122 @@
+<!-- Who is on stage: one column per scene, one row per character. Written for the manuscript in chapters/ and characters/. -->
+<style>
+  h1 { font-size: 0.8em; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); margin: 0 0 10px; }
+  .grid { display: grid; gap: 0; align-items: stretch; }
+  .chapter { font-size: 0.85em; color: var(--dim); padding: 0 4px 2px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .scene { font-size: 0.85em; padding: 4px 4px 6px; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; max-height: 9em; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .scene:hover, .who:hover { color: var(--focus); }
+  .who { padding: 6px 10px 6px 0; white-space: nowrap; cursor: pointer; }
+  .who small { display: block; color: var(--dim); font-size: 0.85em; }
+  .cell { display: flex; align-items: center; justify-content: center; border-left: 1px dashed color-mix(in srgb, var(--border) 60%, transparent); min-width: 34px; }
+  .row-line { border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+  .dot { border-radius: 50%; background: var(--c); cursor: pointer; transition: transform 0.1s; }
+  .dot:hover { transform: scale(1.25); }
+  .early { outline: 2px solid var(--warn); outline-offset: 2px; }
+  .length { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 25%, transparent); align-self: end; margin: 6px 4px 0; }
+  .note { margin-top: 14px; font-size: 0.9em; color: var(--dim); line-height: 1.5; }
+  .note b { color: var(--warn); font-weight: 600; }
+</style>
+<h1>Who is on stage</h1>
+<div id="grid" class="grid"></div>
+<div id="note" class="note"></div>
+<script>
+const COLOURS = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5', '--chart-6'];
+const TITLES = /^(mr|mrs|ms|miss|dr|captain|father|sister)\.?$/i;
+
+async function load() {
+  const cast = [];
+  for (const path of (await cicerone.files('characters/*.md')).sort()) {
+    const { fields } = cicerone.frontMatter(await cicerone.read(path));
+    const name = fields.name || path.replace(/^.*\/|\.md$/g, '');
+    const words = name.split(/\s+/).filter(word => !TITLES.test(word));
+    cast.push({ path, name, role: fields.role || '', firstSeen: Number((fields['first-seen'] || '').replace(/\D+/g, '')) || undefined,
+      pattern: new RegExp(`\\b(${words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'g') });
+  }
+  const scenes = [];
+  const chapters = (await cicerone.files('chapters/*.md')).sort();
+  for (const [index, path] of chapters.entries()) {
+    const lines = (await cicerone.read(path)).split('\n');
+    const title = (lines.find(line => /^#\s/.test(line)) || path).replace(/^#\s+/, '');
+    let scene;
+    lines.forEach((text, i) => {
+      if (/^##\s/.test(text)) {
+        scene = { chapter: index + 1, chapterTitle: title, path, line: i + 1, title: text.replace(/^##\s+/, ''), text: '', at: {} };
+        scenes.push(scene);
+      } else if (scene) {
+        scene.text += text + '\n';
+        for (const who of cast) {
+          const hits = (text.match(who.pattern) || []).length;
+          if (hits) { scene.at[who.name] ??= i + 1; scene[who.name] = (scene[who.name] || 0) + hits; }
+        }
+      }
+    });
+  }
+  return { cast, scenes };
+}
+
+function render({ cast, scenes }) {
+  const grid = document.getElementById('grid');
+  grid.style.gridTemplateColumns = `minmax(8em, auto) repeat(${scenes.length}, minmax(34px, 1fr))`;
+  grid.innerHTML = '';
+  const add = (className, text, onClick, style) => {
+    const el = document.createElement('div');
+    el.className = className;
+    if (text) el.textContent = text;
+    if (onClick) el.onclick = onClick;
+    if (style) Object.assign(el.style, style);
+    grid.append(el);
+    return el;
+  };
+  // chapter headings spanning their scenes
+  add('', '');
+  let column = 2;
+  for (const chapter of [...new Set(scenes.map(scene => scene.chapter))]) {
+    const span = scenes.filter(scene => scene.chapter === chapter).length;
+    const first = scenes.find(scene => scene.chapter === chapter);
+    add('chapter', `${chapter}. ${first.chapterTitle}`, () => cicerone.open(first.path), { gridColumn: `${column} / span ${span}` }).title = first.chapterTitle;
+    column += span;
+  }
+  add('', '');
+  for (const scene of scenes) add('scene', scene.title, () => cicerone.open(scene.path, scene.line)).title = `Chapter ${scene.chapter}: ${scene.title}`;
+  const most = Math.max(1, ...scenes.flatMap(scene => cast.map(who => scene[who.name] || 0)));
+  const early = [];
+  cast.forEach((who, row) => {
+    const label = add('who row-line', '', () => cicerone.open(who.path));
+    label.innerHTML = `<span></span><small></small>`;
+    label.firstChild.textContent = who.name;
+    label.lastChild.textContent = who.role;
+    const first = scenes.find(scene => scene[who.name]);
+    for (const scene of scenes) {
+      const cell = add('cell row-line');
+      const count = scene[who.name] || 0;
+      if (!count) continue;
+      const size = 8 + 14 * Math.sqrt(count / most);
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.style.width = dot.style.height = size + 'px';
+      dot.style.setProperty('--c', `var(${COLOURS[row % COLOURS.length]})`);
+      dot.title = `${who.name} in "${scene.title}" (chapter ${scene.chapter}): named ${count}×. Click to go there.`;
+      dot.onclick = () => cicerone.open(scene.path, scene.at[who.name]);
+      if (scene === first && who.firstSeen && scene.chapter < who.firstSeen) {
+        dot.classList.add('early');
+        early.push(`${who.name} is named in chapter ${scene.chapter}, but ${who.path} says first-seen: chapter ${who.firstSeen}`);
+      }
+      cell.append(dot);
+    }
+  });
+  // scene lengths, so a crowded short scene and an empty long one both stand out
+  add('who', '');
+  const longest = Math.max(1, ...scenes.map(scene => scene.text.split(/\s+/).length));
+  for (const scene of scenes) {
+    const words = scene.text.split(/\s+/).filter(Boolean).length;
+    add('length', '', null, { width: `${Math.max(8, 100 * words / longest)}%` }).title = `${words} words`;
+  }
+  const note = document.getElementById('note');
+  note.innerHTML = early.length ? '' : `${cast.length} characters, ${scenes.length} scenes. Dot size: how often a character is named. Grey bars: scene length.`;
+  for (const line of early) { const b = document.createElement('div'); b.innerHTML = '<b>⚠</b> '; b.append(line); note.append(b); }
+}
+
+const refresh = () => load().then(render);
+cicerone.onChange(refresh);
+refresh();
+</script>

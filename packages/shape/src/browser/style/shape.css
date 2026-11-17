@@ -56,3 +56,22 @@
     color: var(--theia-textLink-foreground); font: inherit;
 }
 .cicerone-view-link:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------ custom views */
+
+.cicerone-view-body.custom { display: flex; flex-direction: column; overflow: hidden; }
+.cicerone-view-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: transparent; display: block; }
+.cicerone-view-consent { padding: 16px 14px; line-height: 1.5; max-width: 34em; }
+.cicerone-view-consent p { margin: 0 0 8px; }
+.cicerone-view-consent code { font-family: var(--theia-code-font-family); font-size: 0.92em; }
+.cicerone-view-consent-icon { font-size: 22px !important; color: var(--cicerone-accent); margin-bottom: 6px; }
+.cicerone-view-consent-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.cicerone-view-consent-actions .theia-button { margin: 0; display: inline-flex; align-items: center; gap: 6px; }
+.cicerone-view-error {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px;
+    border-bottom: 1px solid var(--cicerone-line); background: color-mix(in srgb, var(--cicerone-bad) 10%, transparent);
+}
+.cicerone-view-error > .codicon { color: var(--cicerone-bad); flex: 0 0 auto; }
+.cicerone-view-error-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--theia-code-font-family); font-size: 0.92em; }
+.cicerone-view-error .theia-button { margin: 0; flex: 0 0 auto; min-height: 22px; padding: 1px 10px; }
+.cicerone-view-error-close { background: none; border: none; color: var(--cicerone-dim); cursor: pointer; padding: 2px 4px; }

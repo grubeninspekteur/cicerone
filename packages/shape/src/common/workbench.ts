@@ -11,7 +11,7 @@ export const WORKBENCH_FILE = '.cicerone/workbench.json';
 /** Where skills live; the location the Agent Skills convention and Theia's skill service already use. */
 export const SKILLS_DIRECTORY = '.agents/skills';
 
-export const VIEW_KINDS = ['outline', 'matches', 'files', 'counts', 'document'] as const;
+export const VIEW_KINDS = ['outline', 'matches', 'files', 'counts', 'document', 'custom'] as const;
 export type ViewKind = typeof VIEW_KINDS[number];
 export const AREAS = ['left', 'right', 'bottom'] as const;
 export type Area = typeof AREAS[number];
@@ -25,9 +25,9 @@ export interface ViewSpec {
     /** Codicon name without prefix, e.g. `book`. */
     icon?: string;
     area?: Area;
-    /** Glob of the files the view draws on (all kinds except `document`). */
+    /** Glob of the files the view draws on (all kinds except `document`). For `custom`, the only files its code may read. */
     files?: string;
-    /** `document`: the markdown file to render. */
+    /** `document`: the markdown file to render. `custom`: the HTML file with the view's code. */
     file?: string;
     /** `matches`: regular expression; the first capture group, if any, is what gets listed. */
     pattern?: string;
@@ -76,6 +76,9 @@ export interface WorkbenchConfig {
 }
 
 export const EMPTY_WORKBENCH: WorkbenchConfig = { views: [], actions: [] };
+
+/** The command an action of the workbench is registered as. */
+export const actionCommandId = (actionId: string) => `cicerone.action.${actionId}`;
 
 /** Names for the views that come with the product, usable in `layout`. */
 export const BUILTIN_VIEWS: Record<string, { widgetId: string, description: string }> = {
@@ -136,6 +139,14 @@ export function parseWorkbench(text: string): ParsedWorkbench {
             problems.push(`${at}.kind must be one of: ${VIEW_KINDS.join(', ')}.`);
         } else if (entry.kind === 'document') {
             requireString(entry.file, `${at}.file (the markdown file to render)`, problems);
+        } else if (entry.kind === 'custom') {
+            if (requireString(entry.file, `${at}.file (the HTML file with the view's code, e.g. ".cicerone/views/${typeof entry.id === 'string' ? entry.id : 'my-view'}.html")`, problems)
+                && !/\.html?$/i.test(entry.file as string)) {
+                problems.push(`${at}.file must be an .html file.`);
+            }
+            if (entry.files !== undefined && typeof entry.files !== 'string') {
+                problems.push(`${at}.files must be a glob string: the files the view may read, e.g. "chapters/*.md".`);
+            }
         } else {
             requireString(entry.files, `${at}.files (a glob such as "chapters/*.md")`, problems);
             if (entry.kind === 'matches') {

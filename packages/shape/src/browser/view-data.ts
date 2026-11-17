@@ -2,6 +2,7 @@ import { inject, injectable } from '@theia/core/shared/inversify';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceTools } from '@cicerone/core/lib/common';
 import { countWords, splitFrontMatter, ViewSpec } from '../common/workbench.js';
+import { fingerprint } from './custom-view-host.js';
 import { WorkbenchService } from './workbench-service.js';
 
 export interface ViewItem {
@@ -25,6 +26,7 @@ export type ViewData =
     | { kind: 'cards', cards: { path: string, title: string, fields: [string, string][] }[] }
     | { kind: 'counts', rows: { path: string, label: string, count: number }[], total: number, unit: string, target?: number }
     | { kind: 'document', path: string, text: string }
+    | { kind: 'custom', path: string, html: string, hash: string }
     | { kind: 'message', text: string };
 
 const MAX_MATCHES = 600;
@@ -116,6 +118,15 @@ export class ViewDataService {
                         return { path, label: fields.title ?? heading?.[1] ?? baseName(path), count: lines ? body.split('\n').length : countWords(body.replace(/^#+\s.*$/gm, '')) };
                     });
                     return { kind: 'counts', rows, total: rows.reduce((sum, row) => sum + row.count, 0), unit: lines ? 'lines' : 'words', target: spec.target };
+                }
+                case 'custom': {
+                    let html: string;
+                    try {
+                        html = (await this.fileService.read(root.resolve(spec.file!))).value;
+                    } catch {
+                        return { kind: 'message', text: `${spec.file} does not exist yet.` };
+                    }
+                    return { kind: 'custom', path: spec.file!, html, hash: await fingerprint(html) };
                 }
                 case 'document': {
                     try {

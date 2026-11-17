@@ -5,7 +5,9 @@ import { codicon, Message, ReactWidget } from '@theia/core/lib/browser';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { Markdown } from '@cicerone/core/lib/browser';
-import { ViewSpec } from '../common/workbench.js';
+import { CHANNEL, ViewEvent, ViewReport, ViewRequest, viewDocument, wardenDocument } from '../common/custom-view.js';
+import { actionCommandId, ViewSpec } from '../common/workbench.js';
+import { CustomViewHost } from './custom-view-host.js';
 import { ViewData, ViewDataService, ViewGroup, ViewItem } from './view-data.js';
 import { WorkbenchService } from './workbench-service.js';
 
@@ -14,7 +16,9 @@ export const ShapedViewOptions = Symbol('ShapedViewOptions');
 export interface ShapedViewOptions { viewId: string }
 
 export const shapedViewWidgetId = (viewId: string) => `${SHAPED_VIEW_FACTORY}:${viewId}`;
-export const actionCommandId = (actionId: string) => `cicerone.action.${actionId}`;
+export { actionCommandId };
+/** Contributed by the workbench applier: sends the agent a request in a fresh conversation. Arguments: text, display text. */
+export const ASK_AGENT_COMMAND_ID = 'cicerone.workbench.ask';
 
 /** A view that exists because the workbench description says so. One class renders every kind. */
 @injectable()
@@ -26,11 +30,14 @@ export class ShapedViewWidget extends ReactWidget {
     @inject(EditorManager) protected readonly editorManager: EditorManager;
     @inject(FileService) protected readonly fileService: FileService;
     @inject(CommandService) protected readonly commands: CommandService;
+    @inject(CustomViewHost) protected readonly host: CustomViewHost;
 
     protected data: ViewData | undefined;
     protected loading = false;
     protected stale = true;
     protected refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    /** Bumped on every reload, so a custom view hears that files may have changed. */
+    protected revision = 0;
 
     @postConstruct()
     protected init(): void {
@@ -88,6 +95,7 @@ export class ShapedViewWidget extends ReactWidget {
         this.stale = false;
         try {
             this.data = await this.dataService.load(spec);
+            this.revision++;
         } finally {
             this.loading = false;
             this.update();
@@ -112,7 +120,7 @@ export class ShapedViewWidget extends ReactWidget {
         }
         const data = this.data;
         const action = spec.action ? this.workbench.config.actions.find(candidate => candidate.id === spec.action) : undefined;
-        return <div className='cicerone-view-body'>
+        return <div className={`cicerone-view-body ${data?.kind === 'custom' ? 'custom' : ''}`}>
             {action && <div className='cicerone-view-bar'>
                 <button className='theia-button secondary' onClick={() => this.commands.executeCommand(actionCommandId(action.id))}>
                     <span className={codicon('sparkle')} /> {action.label}
@@ -126,6 +134,13 @@ export class ShapedViewWidget extends ReactWidget {
         switch (data.kind) {
             case 'message':
                 return <div className='cicerone-view-message'>{data.text}</div>;
+            case 'custom':
+                return <CustomView key={data.hash} spec={this.spec!} path={data.path} html={data.html} hash={data.hash} revision={this.revision}
+                    host={this.host} onOpenCode={() => this.open(data.path)}
+                    onAskAgent={error => this.commands.executeCommand(ASK_AGENT_COMMAND_ID,
+                        `The custom view "${this.spec?.title}" (${data.path}) fails in its sandbox with this error:\n\n\`\`\`\n${error.slice(0, 1500)}\n\`\`\`\n\n` +
+                        'Fix the view\'s code. Load the `workbench` skill first if you need the view API.',
+                        `Fix the view "${this.spec?.title}"`)} />;
             case 'document':
                 return <div className='cicerone-view-document'>
                     <Markdown block text={data.text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '')} />
@@ -201,4 +216,105 @@ function GroupView(props: { group: ViewGroup, flat: boolean, showCount: boolean,
         </header>
         {items}
     </section>;
+}
+
+interface CustomViewProps {
+    spec: ViewSpec;
+    path: string;
+    html: string;
+    hash: string;
+    revision: number;
+    host: CustomViewHost;
+    onOpenCode(): void;
+    onAskAgent(error: string): void;
+}
+
+/**
+ * A view whose code the agent wrote. It runs only once the human has allowed this exact code, in two
+ * nested sandboxed frames without network (see custom-view.ts), and talks to the workbench through
+ * {@link CustomViewHost} alone.
+ */
+function CustomView(props: CustomViewProps): React.ReactElement {
+    const { spec, host, hash } = props;
+    const [approved, setApproved] = React.useState<boolean | undefined>(undefined);
+    const [error, setError] = React.useState<string | undefined>(undefined);
+    const frame = React.useRef<HTMLIFrameElement>(null);
+    const first = React.useRef(true);
+
+    React.useEffect(() => {
+        let live = true;
+        host.isApproved(hash).then(value => live && setApproved(value));
+        const listening = host.onDidChangeApproval(() => host.isApproved(hash).then(value => live && setApproved(value)));
+        return () => { live = false; listening.dispose(); };
+    }, [hash]);
+
+    // Built once per version of the code; theme changes are sent as messages instead of reloading the view.
+    const source = React.useMemo(() => wardenDocument(viewDocument(props.html, host.theme())), [props.html]);
+
+    const send = (message: { response: unknown } | { event: ViewEvent }) =>
+        frame.current?.contentWindow?.postMessage({ channel: CHANNEL, ...message }, '*');
+
+    React.useEffect(() => {
+        if (!approved) {
+            return;
+        }
+        const onMessage = (event: MessageEvent) => {
+            const data = event.data as { channel?: string, request?: ViewRequest, report?: ViewReport } | undefined;
+            if (!frame.current || event.source !== frame.current.contentWindow || data?.channel !== CHANNEL) {
+                return;
+            }
+            if (data.request && typeof data.request.id === 'number') {
+                const id = data.request.id;
+                host.handle(spec, data.request).then(
+                    result => send({ response: { id, result } }),
+                    failure => send({ response: { id, error: failure instanceof Error ? failure.message : String(failure) } })
+                );
+            } else if (data.report?.report === 'error') {
+                setError(String(data.report.message).slice(0, 4000));
+            } else if (data.report?.report === 'ready') {
+                setError(undefined);
+            }
+        };
+        window.addEventListener('message', onMessage);
+        const theming = host.onDidChangeTheme(() => {
+            const theme = host.theme();
+            send({ event: { event: 'theme', vars: theme.vars, dark: theme.dark } });
+        });
+        return () => { window.removeEventListener('message', onMessage); theming.dispose(); };
+    }, [approved, spec]);
+
+    React.useEffect(() => {
+        if (first.current) {
+            first.current = false;
+        } else if (approved) {
+            send({ event: { event: 'changed' } });
+        }
+    }, [props.revision]);
+
+    if (approved === undefined) {
+        return <div className='cicerone-view-message'>Loading…</div>;
+    }
+    if (!approved) {
+        return <div className='cicerone-view-consent'>
+            <div className={`cicerone-view-consent-icon ${codicon('shield')}`} />
+            <p><b>This view runs code</b> from <code>{props.path}</code>.</p>
+            <p className='cicerone-dim'>It runs in a sandbox with no network access. It can read {spec.files
+                ? <>only <code>{spec.files}</code></>
+                : <>the files of this workspace, except hidden ones such as <code>.env</code> and <code>.git</code></>}, open files in the editor,
+                and run the actions this workbench declares. It asks again whenever its code changes.</p>
+            <div className='cicerone-view-consent-actions'>
+                <button className='theia-button' onClick={() => host.approve(hash)}><span className={codicon('play')} /> Run this view</button>
+                <button className='theia-button secondary' onClick={props.onOpenCode}><span className={codicon('code')} /> Read the code</button>
+            </div>
+        </div>;
+    }
+    return <>
+        {error && <div className='cicerone-view-error' role='alert'>
+            <span className={codicon('error')} />
+            <div className='cicerone-view-error-text' title={error}>{error.split('\n')[0]}</div>
+            <button className='theia-button secondary' title='Send the error to the agent and ask it to fix the view' onClick={() => props.onAskAgent(error)}>Ask the agent to fix it</button>
+            <button className='cicerone-view-error-close' title='Dismiss' onClick={() => setError(undefined)}><span className={codicon('close')} /></button>
+        </div>}
+        <iframe ref={frame} className='cicerone-view-frame' sandbox='allow-scripts' srcDoc={source} title={spec.title} />
+    </>;
 }
