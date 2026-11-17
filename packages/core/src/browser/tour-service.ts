@@ -21,7 +21,10 @@ export interface ReviewGate {
     sessionId: string;
     /** What will happen once the review is done, e.g. the command line. */
     reason: string;
+    since: number;
 }
+
+type LiveGate = ReviewGate & { promise: Promise<ReviewOutcome>, finish(outcome: ReviewOutcome): void };
 
 const MAX_STORED_TOURS = 20;
 
@@ -69,7 +72,21 @@ export class TourService {
     protected _revision = 0;
     protected refreshing: Promise<void> = Promise.resolve();
     protected readonly reported = new Map<string, string>();
-    protected _gate: (ReviewGate & { promise: Promise<ReviewOutcome>, finish(outcome: ReviewOutcome): void }) | undefined;
+    /** One checkpoint per conversation: several agents can each be waiting for a review of their own. */
+    protected readonly gates = new Map<string, LiveGate>();
+    /** Worker conversation → the conversation that delegated to it. */
+    protected readonly parents = new Map<string, string>();
+
+    /**
+     * The conversation the human is watching. With several agents at work, only this one may move the
+     * tour view or the editor on its own; the others wait until they are asked for.
+     */
+    watchedSessionId: string | undefined;
+
+    /** Whether this conversation may take the stage. True for every conversation as long as none has been singled out. */
+    isWatched(sessionId: string | undefined): boolean {
+        return !sessionId || this.watchedSessionId === undefined || sessionId === this.watchedSessionId;
+    }
 
     @postConstruct()
     protected init(): void {
@@ -186,11 +203,17 @@ export class TourService {
                 startedAt: Date.now(),
                 stops: []
             };
+            const onStage = this.currentTour;
+            const busy = !!onStage && !!this.currentStop && Tour.pending(onStage).length > 0;
+            const watched = this.isWatched(origin.sessionId);
             this.tours.push(tour);
-            // A new tour takes the stage unless the human is in the middle of reviewing another one.
-            if (!this.currentStop || Tour.pending(this.currentTour!).length === 0) {
+            // A new tour takes the stage unless the human is in the middle of reviewing another one,
+            // or it belongs to an agent working in the background.
+            if (!onStage || (watched && !busy)) {
                 this._currentTourId = tour.id;
                 this._currentStopId = undefined;
+            } else {
+                this._currentTourId = onStage.id;
             }
         }
         return tour;
@@ -437,51 +460,94 @@ export class TourService {
 
     /**
      * What the human decided since the agent last heard: one line for the next request, so the agent
-     * does not assume a rejected change went in. Each decision is reported once.
+     * does not assume a rejected change went in. Each decision is reported once. Decisions about the
+     * stops of an agent's workers are reported to it too, on a line of their own per worker.
      */
     reviewNote(sessionId: string): string | undefined {
-        const accepted: number[] = [];
-        const rejected: number[] = [];
-        const stale: number[] = [];
-        for (const tour of this.tours) {
-            if (tour.sessionId !== sessionId) {
-                continue;
-            }
-            for (const stop of Tour.changes(tour)) {
-                const reported = this.reported.get(stop.id) ?? 'pending';
-                if (reported !== stop.state) {
-                    this.reported.set(stop.id, stop.state);
-                    (stop.state === 'accepted' ? accepted : stop.state === 'rejected' ? rejected : stop.state === 'stale' ? stale : []).push(stop.n);
+        const lines: string[] = [];
+        for (const member of this.family(sessionId)) {
+            const accepted: number[] = [];
+            const rejected: number[] = [];
+            const stale: number[] = [];
+            let title = '';
+            for (const tour of this.tours) {
+                if (tour.sessionId !== member) {
+                    continue;
+                }
+                title = tour.title;
+                for (const stop of Tour.changes(tour)) {
+                    const reported = this.reported.get(stop.id) ?? 'pending';
+                    if (reported !== stop.state) {
+                        this.reported.set(stop.id, stop.state);
+                        (stop.state === 'accepted' ? accepted : stop.state === 'rejected' ? rejected : stop.state === 'stale' ? stale : []).push(stop.n);
+                    }
                 }
             }
+            const parts = [
+                accepted.length ? `accepted ${accepted.join(', ')}` : '',
+                rejected.length ? `rejected ${rejected.join(', ')}` : '',
+                stale.length ? `no longer applicable ${stale.join(', ')}` : ''
+            ].filter(Boolean);
+            if (parts.length > 0) {
+                lines.push(member === sessionId ? `[review of your stops: ${parts.join('; ')}]` : `[review of the stops of your worker "${title}": ${parts.join('; ')}]`);
+            }
         }
-        const parts = [
-            accepted.length ? `accepted ${accepted.join(', ')}` : '',
-            rejected.length ? `rejected ${rejected.join(', ')}` : '',
-            stale.length ? `no longer applicable ${stale.join(', ')}` : ''
-        ].filter(Boolean);
-        if (parts.length === 0) {
+        if (lines.length === 0) {
             return undefined;
         }
         // The decisions are now with the agent; views that offered to pass them on should stop offering.
         this.onDidChangeEmitter.fire();
-        return `[review of your stops: ${parts.join('; ')}]`;
+        return lines.join('\n');
     }
 
     /** Whether the human has decided something the agent has not been told yet. Does not consume it. */
     hasUnreportedReview(sessionId: string): boolean {
-        return this.tours.some(tour => tour.sessionId === sessionId
+        const family = this.family(sessionId);
+        return this.tours.some(tour => family.includes(tour.sessionId)
             && Tour.changes(tour).some(stop => stop.state !== 'pending' && (this.reported.get(stop.id) ?? 'pending') !== stop.state));
     }
 
-    /** Proposals of this conversation that are still waiting for a decision. */
-    pendingIn(sessionId: string): Stop[] {
+    /** Makes `child` a worker of `parent`: its held proposals then count as the parent's when a command waits for review. */
+    adopt(child: string, parent: string): void {
+        this.parents.set(child, parent);
+    }
+
+    parentOf(sessionId: string): string | undefined {
+        return this.parents.get(sessionId);
+    }
+
+    /** A conversation and the workers it delegated to, itself first. */
+    family(sessionId: string): string[] {
+        const members = [sessionId];
+        for (let i = 0; i < members.length; i++) {
+            for (const [child, parent] of this.parents) {
+                if (parent === members[i] && !members.includes(child)) {
+                    members.push(child);
+                }
+            }
+        }
+        return members;
+    }
+
+    /** Proposals of this conversation alone that are still waiting for a decision. */
+    pendingOf(sessionId: string): Stop[] {
         return this.tours.filter(tour => tour.sessionId === sessionId).flatMap(tour => Tour.pending(tour));
     }
 
-    /** What the agent is waiting for the human's review to do, if it is waiting. */
-    get gate(): ReviewGate | undefined {
-        return this._gate && { sessionId: this._gate.sessionId, reason: this._gate.reason };
+    /** Proposals of this conversation and of its workers that are still waiting for a decision. */
+    pendingIn(sessionId: string): Stop[] {
+        const family = this.family(sessionId);
+        return this.tours.filter(tour => family.includes(tour.sessionId)).flatMap(tour => Tour.pending(tour));
+    }
+
+    /** Every agent that is waiting for the human's review before it does something. */
+    getGates(): ReviewGate[] {
+        return [...this.gates.values()].map(({ sessionId, reason, since }) => ({ sessionId, reason, since }));
+    }
+
+    /** The checkpoint that waits on this conversation's proposals: its own, or that of the agent it works for. */
+    gateFor(sessionId: string): ReviewGate | undefined {
+        return this.getGates().find(gate => this.family(gate.sessionId).includes(sessionId));
     }
 
     /**
@@ -493,15 +559,16 @@ export class TourService {
         if (this.pendingIn(sessionId).length === 0) {
             return Promise.resolve('reviewed');
         }
-        if (this._gate?.sessionId === sessionId) {
+        const waiting = this.gates.get(sessionId);
+        if (waiting) {
             // Several steps of one turn wait behind the same review.
-            return this._gate.promise;
+            return waiting.promise;
         }
         let settle: (outcome: ReviewOutcome) => void = () => undefined;
         const promise = new Promise<ReviewOutcome>(resolve => settle = resolve);
         const finish = (outcome: ReviewOutcome) => {
-            if (this._gate?.promise === promise) {
-                this._gate = undefined;
+            if (this.gates.get(sessionId)?.promise === promise) {
+                this.gates.delete(sessionId);
                 watching.dispose();
                 cancelling?.dispose();
                 this.onDidChangeEmitter.fire();
@@ -514,14 +581,18 @@ export class TourService {
             }
         });
         const cancelling = cancellation?.onCancellationRequested(() => finish('cancelled'));
-        this._gate = { sessionId, reason, promise, finish };
+        this.gates.set(sessionId, { sessionId, reason, since: Date.now(), promise, finish });
         this.onDidChangeEmitter.fire();
         return promise;
     }
 
-    /** The human's "go ahead without them". */
-    skipGate(): void {
-        this._gate?.finish('skipped');
+    /** The human's "go ahead without them", for one waiting agent or, without an argument, for all of them. */
+    skipGate(sessionId?: string): void {
+        for (const gate of [...this.gates.values()]) {
+            if (!sessionId || gate.sessionId === sessionId) {
+                gate.finish('skipped');
+            }
+        }
     }
 
     removeTour(tour: Tour): void {

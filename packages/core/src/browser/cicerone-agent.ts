@@ -3,6 +3,7 @@ import { ContributionProvider, PreferenceService } from '@theia/core';
 import { AIVariableContext, LanguageModel, LanguageModelMessage, LanguageModelRequirement, PromptVariantSet, ToolProvider } from '@theia/ai-core';
 import { AbstractStreamParsingChatAgent, ChatModel, MutableChatRequestModel, SystemMessageDescription } from '@theia/ai-chat';
 import { EditorManager } from '@theia/editor/lib/browser';
+import { FleetService } from './fleet-service.js';
 import { SkillLibrary, TOOL_PROVIDER } from './tools.js';
 import { TourService } from './tour-service.js';
 import { WorkspaceDocuments } from './workspace-documents.js';
@@ -29,6 +30,7 @@ The user reviews your work as a tour: each \`edit\` and \`show\` becomes a numbe
 - Use \`show\` for places that matter but need no change.
 - If a request is ambiguous in a way that changes the work, ask before editing.
 - A \`[review of your stops: …]\` line tells you what the user accepted or rejected. It is information, not a request: do not extend the work because of it.
+- A \`[the user, while you work: …]\` line after a tool result is the user steering you mid-task: follow it from there on.
 - End with two or three sentences: what you did and where to look first. Do not list the stops; the tour does that.`;
 
 /**
@@ -44,6 +46,7 @@ export class CiceroneAgent extends AbstractStreamParsingChatAgent {
     @inject(WorkspaceDocuments) protected readonly documents: WorkspaceDocuments;
     @inject(TourService) protected readonly tours: TourService;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(FleetService) protected readonly fleet: FleetService;
 
     readonly id = CICERONE_AGENT_ID;
     readonly name = CICERONE_AGENT_ID;
@@ -66,7 +69,9 @@ export class CiceroneAgent extends AbstractStreamParsingChatAgent {
 
     override async invoke(request: MutableChatRequestModel): Promise<void> {
         // Where the human is looking when they ask is what "this" and "here" refer to.
-        const note = [this.tours.reviewNote(request.session.id), this.describeEditor()].filter(Boolean).join('\n');
+        // An agent dispatched to the background was not asked from the editor; where the cursor happens to be says nothing about its task.
+        const editor = this.fleet.isBackground(request.session.id) ? undefined : this.describeEditor();
+        const note = [this.tours.reviewNote(request.session.id), editor].filter(Boolean).join('\n');
         request.addData(EDITOR_NOTE_KEY, note || undefined);
         return super.invoke(request);
     }

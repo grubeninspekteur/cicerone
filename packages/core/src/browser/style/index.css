@@ -203,3 +203,109 @@
 .cicerone-welcome-icon { font-size: 28px !important; opacity: 0.7; }
 .cicerone-welcome-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
 .cicerone-welcome-actions .theia-button { margin: 0; }
+
+/* ----------------------------------------------------------------- fleet */
+
+/*
+ * Each agent gets a colour, so that one of them can be told from another at a glance on the board
+ * and in the ledger. The colours identify; they never signal state. Amber stays reserved for "waiting for you".
+ */
+.colour-0 { --agent: #4c9bd6; }
+.colour-1 { --agent: #9a78d6; }
+.colour-2 { --agent: #3fa68f; }
+.colour-3 { --agent: #d67a9c; }
+.colour-4 { --agent: #7f9a3b; }
+.colour-5 { --agent: #5d7fe0; }
+.colour-6 { --agent: #c26ad1; }
+.colour-7 { --agent: #4aa9b8; }
+.cicerone-agent-dot { display: inline-block; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--agent, var(--cicerone-dim)); vertical-align: baseline; }
+
+.cicerone-fleet { height: 100%; outline: none; overflow-y: auto; font-size: var(--theia-ui-font-size1); background: var(--theia-editor-background); }
+.cicerone-fleet-body { max-width: 1180px; margin: 0 auto; padding: 18px 22px 40px; display: flex; flex-direction: column; gap: 22px; }
+
+.cicerone-dispatch { display: flex; flex-direction: column; gap: 6px; }
+.cicerone-dispatch-input {
+    width: 100%; box-sizing: border-box; resize: vertical; padding: 10px 12px; line-height: 1.45; border-radius: 6px;
+    font-family: var(--theia-ui-font-family); font-size: 1.05em;
+}
+.cicerone-dispatch-input:not(:focus) { border: 1px solid var(--cicerone-line); }
+.cicerone-dispatch-input:focus { border-color: var(--theia-focusBorder); }
+.cicerone-dispatch-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 0.92em; }
+.cicerone-dispatch-bar b { color: var(--cicerone-accent); }
+.cicerone-dispatch-bar .theia-button { margin: 0; display: inline-flex; align-items: center; gap: 6px; }
+
+.cicerone-fleet-heading {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 0.86em; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.cicerone-fleet-facts, .cicerone-fleet-hint { font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 1.08em; }
+.cicerone-attention-count {
+    min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: var(--cicerone-accent); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; letter-spacing: 0;
+}
+
+.cicerone-attention { border: 1px solid color-mix(in srgb, var(--cicerone-accent) 55%, transparent); border-radius: 8px; padding: 12px 14px 6px; background: color-mix(in srgb, var(--cicerone-accent) 6%, transparent); }
+.cicerone-attention-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid color-mix(in srgb, var(--cicerone-accent) 22%, transparent); }
+.cicerone-attention-icon { flex: 0 0 auto; margin-top: 2px; color: var(--cicerone-accent); }
+.cicerone-attention-row.error .cicerone-attention-icon { color: var(--cicerone-bad); }
+.cicerone-attention-row.report .cicerone-attention-icon { color: var(--cicerone-ok); }
+.cicerone-attention-main { flex: 1 1 auto; min-width: 0; line-height: 1.45; }
+.cicerone-attention-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cicerone-attention-detail { display: block; margin-top: 2px; color: var(--cicerone-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+code.cicerone-attention-detail { font-family: var(--theia-code-font-family); font-size: 0.92em; color: var(--theia-foreground); }
+.cicerone-attention-detail.clamped { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cicerone-attention-actions { flex: 0 0 auto; display: flex; gap: 6px; }
+.cicerone-attention-actions .theia-button { margin: 0; display: inline-flex; align-items: center; gap: 5px; }
+
+.cicerone-fleet-empty { padding: 26px 22px; border: 1px dashed var(--cicerone-line); border-radius: 8px; max-width: 46em; line-height: 1.55; }
+.cicerone-fleet-empty p { margin: 10px 0 0; }
+.cicerone-fleet-empty kbd { font-family: var(--theia-code-font-family); font-size: 0.9em; padding: 0 4px; border: 1px solid var(--cicerone-line); border-radius: 3px; }
+
+.cicerone-agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.cicerone-agent {
+    display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 14px; border: 1px solid var(--cicerone-line); border-radius: 8px;
+    border-top: 3px solid var(--agent); background: var(--theia-sideBar-background, transparent);
+}
+.cicerone-agent.approval, .cicerone-agent.review, .cicerone-agent.decide { box-shadow: 0 0 0 1px var(--cicerone-accent); border-color: var(--cicerone-accent); border-top-color: var(--agent); }
+.cicerone-agent.worker { border-left: 3px solid color-mix(in srgb, var(--agent) 55%, transparent); }
+.cicerone-agent-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cicerone-agent-name { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cicerone-agent.unread .cicerone-agent-name::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--cicerone-accent); vertical-align: middle; }
+.cicerone-agent-state { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; font-size: 0.9em; color: var(--cicerone-dim); white-space: nowrap; }
+.cicerone-agent-state .codicon { font-size: 13px; }
+.cicerone-agent-state.approval, .cicerone-agent-state.review, .cicerone-agent-state.decide { color: var(--cicerone-accent); font-weight: 600; }
+.cicerone-agent-state.done { color: var(--cicerone-ok); }
+.cicerone-agent-state.error { color: var(--cicerone-bad); }
+.cicerone-agent-parent { font-size: 0.9em; display: flex; align-items: center; gap: 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cicerone-agent-parent .codicon { font-size: 12px; }
+.cicerone-agent-now { min-height: 2.9em; line-height: 1.45; }
+.cicerone-agent-step { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--theia-code-font-family); font-size: 0.93em; }
+.cicerone-agent-step .codicon { font-size: 13px; vertical-align: text-bottom; }
+.cicerone-agent-step em { font-family: var(--theia-ui-font-family); color: var(--cicerone-accent); font-style: normal; }
+.cicerone-agent-summary { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--cicerone-dim); }
+.cicerone-agent-error { color: var(--cicerone-bad); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* The trail: one mark per step of the turn, so a glance shows how far an agent has got and whether it is going in circles. */
+.cicerone-trail { display: flex; flex-wrap: wrap; gap: 3px; }
+.cicerone-trail-step.codicon { font-size: 12px; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--cicerone-dim); background: color-mix(in srgb, var(--theia-foreground) 8%, transparent); }
+.cicerone-trail-step.running { color: var(--agent); outline: 1px solid var(--agent); }
+.cicerone-trail-step.awaiting-approval { color: #fff; background: var(--cicerone-accent); }
+.cicerone-trail-step.failed, .cicerone-trail-step.denied { color: var(--cicerone-bad); }
+
+.cicerone-agent-files { display: flex; flex-wrap: wrap; gap: 4px; }
+.cicerone-file { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; border-radius: 4px; font-family: var(--theia-code-font-family); font-size: 0.88em; border: 1px solid var(--cicerone-line); }
+.cicerone-file.shared { border-color: var(--theia-editorWarning-foreground); color: var(--theia-editorWarning-foreground); }
+.cicerone-file .codicon { font-size: 11px; }
+
+.cicerone-agent-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+.cicerone-agent-facts { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 0.9em; font-variant-numeric: tabular-nums; }
+.cicerone-agent-waiting { color: var(--cicerone-accent); display: inline-flex; align-items: center; gap: 3px; }
+.cicerone-agent-waiting .codicon { font-size: 12px; }
+.cicerone-agent-actions { flex: 0 0 auto; display: flex; gap: 2px; }
+.cicerone-icon-button { background: none; border: none; padding: 3px 5px; border-radius: 4px; color: var(--cicerone-dim); cursor: pointer; }
+.cicerone-icon-button:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); color: var(--theia-foreground); }
+.cicerone-icon-button.accent { color: var(--cicerone-accent); }
+.cicerone-icon-button:focus-visible { outline: 1px solid var(--theia-focusBorder); }
+.cicerone-agent-tell { width: 100%; box-sizing: border-box; }
+.cicerone-agent-tell:not(:focus) { border: 1px solid var(--cicerone-line); }
+.cicerone-agent-tell-hint { font-size: 0.88em; margin-top: -4px; }
+.cicerone-agent-after { font-family: var(--theia-code-font-family); font-size: 0.93em; }

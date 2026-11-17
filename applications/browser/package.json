@@ -61,7 +61,8 @@
             "find": "always_allow",
             "edit": "always_allow",
             "show": "always_allow",
-            "skill": "always_allow"
+            "skill": "always_allow",
+            "delegate": "always_allow"
           },
           "[markdown]": {
             "editor.wordWrap": "on"

@@ -70,7 +70,7 @@ export class StopPresenter {
         this.tours.onDidAddStop(stop => {
             // While the agent works, each new stop is shown as it appears, unless the human is busy reviewing.
             // Stops often arrive in bursts; only the last of a burst is worth opening an editor for.
-            if (this.following && !this.reviewing) {
+            if (this.following && !this.reviewing && this.watches(this.tours.getTour(stop.tourId)?.sessionId)) {
                 const idle = !this.nextToFollow;
                 this.nextToFollow = stop;
                 if (idle) {
@@ -87,10 +87,15 @@ export class StopPresenter {
         this.tours.onDidFinish(tour => {
             // The agent is done: hand over at the beginning of the tour, unless the human already went somewhere.
             this.nextToFollow = undefined;
-            if (this.following && tour === this.tours.currentTour && tour.stops.length > 0 && (this.followed || !this.tours.currentStop)) {
+            if (this.following && this.watches(tour.sessionId) && tour === this.tours.currentTour && tour.stops.length > 0 && (this.followed || !this.tours.currentStop)) {
                 this.present(tour.stops[0], false);
             }
         });
+    }
+
+    /** With several agents at work the editor follows one of them: the one whose conversation is open. */
+    protected watches(sessionId: string | undefined): boolean {
+        return this.tours.isWatched(sessionId);
     }
 
     get following(): boolean {
@@ -163,8 +168,8 @@ export class StopPresenter {
     }
 
     /** Shows where the agent is reading right now. Does nothing unless following is on and no review is in progress. */
-    async follow(uri: URI, span?: LineSpan): Promise<void> {
-        if (!this.following || this.reviewing) {
+    async follow(uri: URI, span?: LineSpan, sessionId?: string): Promise<void> {
+        if (!this.following || this.reviewing || !this.watches(sessionId)) {
             return;
         }
         try {

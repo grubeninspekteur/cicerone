@@ -10,12 +10,13 @@ import { WorkspaceTools } from '../common/workspace-tools.js';
 import { ActivityService } from './activity-service.js';
 import { BuiltinSkill, BuiltinSkillContribution } from './builtin-skills.js';
 import { EditValidator } from './edit-validator.js';
+import { FleetService } from './fleet-service.js';
 import { StopPresenter } from './stop-presenter.js';
 import { ProposalError, TourOrigin, TourService } from './tour-service.js';
 import { WorkspaceDocuments } from './workspace-documents.js';
 
 /*
- * The whole tool set. Six tools, short descriptions, short results.
+ * The whole tool set. Seven tools, short descriptions, short results.
  *
  * Every definition below is sent with every request, and every result stays in the conversation
  * for the rest of it, so both are written to be as small as they can be while still being
@@ -31,6 +32,7 @@ const FIND_MAX = 60;
 const RUN_TAIL_LINES = 60;
 const RUN_HEAD_LINES = 12;
 const RUN_TIMEOUT_MS = 120_000;
+const MAX_WORKERS = 6;
 
 @injectable()
 abstract class CiceroneTool implements ToolProvider {
@@ -39,6 +41,7 @@ abstract class CiceroneTool implements ToolProvider {
     @inject(TourService) protected readonly tours: TourService;
     @inject(ActivityService) protected readonly activity: ActivityService;
     @inject(StopPresenter) protected readonly presenter: StopPresenter;
+    @inject(FleetService) protected readonly fleet: FleetService;
 
     abstract getTool(): ToolRequest;
 
@@ -73,14 +76,31 @@ abstract class CiceroneTool implements ToolProvider {
                     }
                     const args = JSON.parse(raw || '{}') as A;
                     this.activity.annotate(ctx.toolCallId, { target: label(args) });
-                    return await run(args, ctx);
+                    return this.steered(await run(args, ctx), ctx);
                 } catch (error) {
                     // What the model reads when it got something wrong: one sentence it can act on.
-                    return createToolCallError(error instanceof Error ? error.message : String(error));
+                    const failure = createToolCallError(error instanceof Error ? error.message : String(error));
+                    return ChatToolContext.is(ctx) ? this.steered(failure, ctx) : failure;
                 }
             },
             ...extra
         };
+    }
+
+    /**
+     * A tool result is the one moment a working model reads something new, so whatever the human
+     * said in the meantime travels with it. That is what makes an agent steerable without stopping it.
+     */
+    protected steered(result: ToolCallResult, ctx: ChatToolContext): ToolCallResult {
+        const steering = this.fleet.takeSteering(ctx.request.session.id);
+        if (!steering) {
+            return result;
+        }
+        if (typeof result === 'string') {
+            return `${result}\n\n${steering}`;
+        }
+        const failure = errorText(result);
+        return failure === undefined ? result : createToolCallError(`${failure}\n\n${steering}`);
     }
 
     protected origin(ctx: ChatToolContext): TourOrigin {
@@ -129,7 +149,7 @@ export class ReadTool extends CiceroneTool {
                     span: { startLine: from, endLine: Math.max(from, to) },
                     outcome: partial ? `lines ${from}–${to} of ${all.length}` : `${all.length} lines`
                 });
-                this.presenter.follow(uri, partial ? { startLine: from, endLine: Math.min(to, from + 30) } : undefined);
+                this.presenter.follow(uri, partial ? { startLine: from, endLine: Math.min(to, from + 30) } : undefined, ctx.request.session.id);
                 // The header is only spent when the model needs it to know there is more.
                 return partial ? `[lines ${from}-${to} of ${all.length}]\n${body}` : body;
             },
@@ -310,6 +330,68 @@ export class RunTool extends CiceroneTool {
             }
         );
     }
+}
+
+/**
+ * Fan-out. The agent splits off parts of the work that do not depend on each other; each goes to a
+ * worker with a conversation, a tour and a place on the fleet board of its own, and they run at the
+ * same time. What comes back is each worker's closing words, not its transcript: the parent pays
+ * for a paragraph per worker, and the human reviews the workers' stops like anyone else's.
+ */
+@injectable()
+export class DelegateTool extends CiceroneTool {
+
+    getTool(): ToolRequest {
+        return this.define<{ tasks: string[] }>(
+            'delegate',
+            `Hand independent parts of the work to up to ${MAX_WORKERS} workers that run in parallel. Each worker is a fresh agent that knows only its task text, ` +
+            'so make each one self-contained (files, goal, what to report). Returns every worker\'s closing summary. Not for steps that depend on each other.',
+            { tasks: { type: 'array', items: { type: 'string' }, description: 'One self-contained instruction per worker.' } },
+            ['tasks'],
+            async (args, ctx) => {
+                const sessionId = ctx.request.session.id;
+                const tasks = (Array.isArray(args.tasks) ? args.tasks : []).filter(task => typeof task === 'string' && task.trim()).map(task => task.trim());
+                if (tasks.length === 0) {
+                    throw new Error('Pass `tasks`: a list of instructions, one per worker.');
+                }
+                if (tasks.length > MAX_WORKERS) {
+                    throw new Error(`At most ${MAX_WORKERS} workers at a time; you passed ${tasks.length}. Group the tasks.`);
+                }
+                if (this.tours.parentOf(sessionId)) {
+                    throw new Error('You are a worker; workers do the task themselves and cannot delegate.');
+                }
+                this.activity.annotate(ctx.toolCallId, { outcome: `${tasks.length} ${tasks.length === 1 ? 'worker' : 'workers'} at work` });
+                const workers = await Promise.all(tasks.map(task => this.fleet.dispatch(task, { parentId: sessionId })));
+                const cancelling = ctx.cancellationToken?.onCancellationRequested(() => workers.forEach(worker => this.fleet.stop(worker.sessionId)));
+                try {
+                    const turns = await Promise.all(workers.map(worker => worker.finished));
+                    const reports = workers.map((worker, index) => {
+                        const agent = this.fleet.getAgent(worker.sessionId);
+                        const turn = turns[index];
+                        const outcome = !turn ? 'did not start'
+                            : turn.status === 'error' ? `failed: ${turn.error ?? 'unknown error'}`
+                                : turn.status === 'canceled' ? 'was stopped by the user'
+                                    : agent?.summary ?? 'finished without a summary';
+                        const held = agent && agent.changes > 0 ? ` [${agent.changes} ${agent.changes === 1 ? 'change' : 'changes'}: ${agent.applied} written, ${agent.pending} held for the user's review]` : '';
+                        return `Worker ${index + 1} (${tasks[index].split('\n')[0].slice(0, 60)}): ${outcome}${held}`;
+                    });
+                    const failed = turns.filter(turn => !turn || turn.status !== 'done').length;
+                    this.activity.annotate(ctx.toolCallId, { outcome: failed ? `${tasks.length - failed} of ${tasks.length} workers finished` : `${tasks.length} ${tasks.length === 1 ? 'worker' : 'workers'} finished` });
+                    return reports.join('\n\n');
+                } finally {
+                    cancelling?.dispose();
+                }
+            },
+            args => Array.isArray(args.tasks) ? `${args.tasks.length} ${args.tasks.length === 1 ? 'task' : 'tasks'}` : undefined
+        );
+    }
+}
+
+/** The message of a tool error, or undefined for any other result. */
+function errorText(result: ToolCallResult): string | undefined {
+    const content = (result as { content?: { type?: string, data?: unknown }[] } | undefined)?.content;
+    const first = Array.isArray(content) && content.length === 1 ? content[0] : undefined;
+    return first?.type === 'error' && typeof first.data === 'string' ? first.data : undefined;
 }
 
 /** Keeps the start (what ran) and the end (how it went) of long output. */

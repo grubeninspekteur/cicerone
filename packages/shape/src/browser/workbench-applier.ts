@@ -16,7 +16,7 @@ import { CHAT_VIEW_ID } from '@cicerone/core/lib/browser';
 import { PROFILES, WorkbenchProfile } from '../common/profiles.js';
 import { ActionSpec, AREAS, BUILTIN_VIEWS, LayoutSpec, WORKBENCH_FILE } from '../common/workbench.js';
 import { WORKBENCH_SKILL_NAME } from '../common/workbench-skill.js';
-import { actionCommandId, SHAPED_VIEW_FACTORY, ShapedViewWidget, shapedViewWidgetId } from './shaped-view-widget.js';
+import { actionCommandId, ASK_AGENT_COMMAND_ID, SHAPED_VIEW_FACTORY, ShapedViewWidget, shapedViewWidgetId } from './shaped-view-widget.js';
 import { WorkbenchService } from './workbench-service.js';
 
 export namespace WorkbenchCommands {
@@ -259,6 +259,9 @@ export class WorkbenchApplier implements FrontendApplicationContribution, Comman
     // ----------------------------------------------------------- commands
 
     registerCommands(registry: CommandRegistry): void {
+        registry.registerCommand({ id: ASK_AGENT_COMMAND_ID }, {
+            execute: (text: string, displayText?: string) => typeof text === 'string' && text.trim() ? this.ask(text, displayText) : undefined
+        });
         registry.registerCommand(WorkbenchCommands.OPEN, {
             execute: () => this.workbench.uri && open(this.openerService, this.workbench.uri),
             isEnabled: () => this.workbench.exists

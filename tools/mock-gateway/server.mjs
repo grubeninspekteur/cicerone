@@ -145,6 +145,10 @@ const server = createServer(async (request, response) => {
         if (request.method === 'POST' && (path === '/v1/chat/completions' || path === '/chat/completions')) {
             const body = JSON.parse(await readBody(request));
             const step = nextStep(body);
+            if (step.wait) {
+                // A step may take its time, the way a model does: long enough to watch an agent work, or to steer it.
+                await sleep(step.wait * (Number(process.env.MOCK_GATEWAY_PACE ?? 1)));
+            }
             const usage = body.stream ? await streamCompletion(response, body, step) : plainCompletion(response, body, step);
             const system = (body.messages ?? []).filter(message => message.role === 'system' || message.role === 'developer').map(textOf).join('\n');
             // One line per request: what the harness actually put on the wire.

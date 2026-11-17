@@ -4,6 +4,7 @@ import { PreferenceScope, PreferenceService, URI } from '@theia/core';
 import { codicon, ReactWidget } from '@theia/core/lib/browser';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { ActivityEntry, ActivityService, ActivityTurn } from './activity-service.js';
+import { FleetService } from './fleet-service.js';
 import { FOLLOW_PREF, StopPresenter } from './stop-presenter.js';
 import { TourService } from './tour-service.js';
 
@@ -28,6 +29,7 @@ export class ActivityWidget extends ReactWidget {
     @inject(StopPresenter) protected readonly presenter: StopPresenter;
     @inject(EditorManager) protected readonly editorManager: EditorManager;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(FleetService) protected readonly fleet: FleetService;
 
     protected ticker: ReturnType<typeof setInterval> | undefined;
 
@@ -83,7 +85,8 @@ export class ActivityWidget extends ReactWidget {
                 </span>
             </header>
             <div className='cicerone-turns'>
-                {[...turns].reverse().map(turn => <TurnView key={turn.requestId} turn={turn} onOpen={entry => this.open(entry)} />)}
+                {[...turns].reverse().map(turn => <TurnView key={turn.requestId} turn={turn} onOpen={entry => this.open(entry)}
+                    agent={{ name: this.fleet.nameOf(turn.sessionId), colour: this.fleet.colourOf(turn.sessionId) }} />)}
             </div>
         </div>;
     }
@@ -99,7 +102,7 @@ export class ActivityWidget extends ReactWidget {
     }
 }
 
-function TurnView({ turn, onOpen }: { turn: ActivityTurn, onOpen(entry: ActivityEntry): void }): React.ReactElement {
+function TurnView({ turn, onOpen, agent }: { turn: ActivityTurn, onOpen(entry: ActivityEntry): void, agent: { name: string, colour: number } }): React.ReactElement {
     const [open, setOpen] = React.useState(true);
     const live = turn.status === 'running' || turn.status === 'waiting';
     const elapsed = turn.entries.length > 0 || live
@@ -108,6 +111,7 @@ function TurnView({ turn, onOpen }: { turn: ActivityTurn, onOpen(entry: Activity
     return <section className={`cicerone-turn ${turn.status}`}>
         <header className='cicerone-turn-header' onClick={() => setOpen(!open)}>
             <span className={codicon(open ? 'chevron-down' : 'chevron-right')} />
+            <span className={`cicerone-agent-dot colour-${agent.colour}`} title={`Agent: ${agent.name}`} />
             <span className='cicerone-turn-prompt' title={turn.prompt}>{turn.prompt}</span>
             <span className='cicerone-turn-facts'>
                 {turn.model && <span title='Model'>{turn.model}</span>}
